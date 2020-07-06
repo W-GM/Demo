@@ -1,3 +1,13 @@
+/**
+ * @file multitask.cpp
+ * @author wgm (wangguomin@scaszh.com)
+ * @brief This is the CQOF wellsite RTU multi-threaded program
+ * @version 1.1
+ * @date 2020-07-03
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
 #include "multitask.h"
 #include "constants.h"
 #include <sys/select.h>
@@ -11,308 +21,275 @@
 #include <stdio.h>
 #include "helper.h"
 
-#include "modbus-private.h"
-
-int static set_port(int fd, int nSpeed, int nBits, char nEvent, int nStop)
+/**
+ * @brief 读取配置文件
+ * 
+ * @return int 成功：0  失败：-1
+ */
+int MultiTask::config_manage()
 {
-    struct termios newtio, oldtio;
+    uint8_t ret = 0;
+    int     j = 0;
+    char   *str;
+    string  option[] = {
+        "PORT",
+        "IP",
+        "GATEWAY",
+        "MAC",
+        "MASK",
+        "VALVE_GROUP",
+        "VALVE_SEL",
+        "MANIFOLD_PRESSURE",
+        "MANIFOLD_PRESSURE_ID",
+        "MANIFOLD_PRESSURE_ADDR",
+        "XBEE_ID",
+        "XBEE_SC",
+        "XBEE_AO",
+        "XBEE_CE",
+        "WELLHEAD_MAX_NUM",
+        "WELLHEAD_1",
+        "WELLHEAD_2",
+        "WELLHEAD_3",
+        "WELLHEAD_4",
+        "WELLHEAD_5",
+        "WELLHEAD_6",
+        "WELLHEAD_7",
+        "WELLHEAD_8",
+        "WELLHEAD_9",
+        "WELLHEAD_10",
+        "WELLHEAD_11",
+        "WELLHEAD_12",
+        "WELLHEAD_13",
+        "WELLHEAD_14",
+        "WELLHEAD_15",
+        "WELLHEAD_16"
+    };
 
-    memset(&oldtio, 0, sizeof(oldtio));
+#ifdef ARMCQ
+    const char *path = "/home/config/myconfig.xml";
+#else // ifdef ARMCQ
+    const char *path = "./config/myconfig.xml";
+#endif // ifdef ARMCQ
 
-    /* save the old serial port configuration */
-    if (tcgetattr(fd, &oldtio) != 0)
+    /* ---------- 打开并读取配置文件 ----------- */
+    if (config.LoadFile(path) !=
+        XML_SUCCESS)
     {
-        perror("set_port/tcgetattr");
+        /* 读取文件失败 */
+        printf("load config file error !\n");
         return -1;
     }
 
-    memset(&newtio, 0, sizeof(newtio));
-
-    /* ignore modem control lines and enable receiver */
-    newtio.c_cflag |= CLOCAL | CREAD;
-    newtio.c_cflag &= ~CSIZE;
-
-    /* set character size */
-    switch (nBits)
+    /* 读取标签 */
+    if ((config_label = config.FirstChildElement("CONFIG")) == nullptr)
     {
-    case 8:
-        newtio.c_cflag |= CS8;
-        break;
-
-    case 7:
-        newtio.c_cflag |= CS7;
-        break;
-
-    case 6:
-        newtio.c_cflag |= CS6;
-        break;
-
-    case 5:
-        newtio.c_cflag |= CS5;
-        break;
-
-    default:
-        newtio.c_cflag |= CS8;
-        break;
-    }
-
-    /* set the parity */
-    switch (nEvent)
-    {
-    case 'o':
-    case 'O':
-        newtio.c_cflag |= PARENB;
-        newtio.c_cflag |= PARODD;
-        newtio.c_iflag |= (INPCK | ISTRIP);
-        break;
-
-    case 'e':
-    case 'E':
-        newtio.c_cflag |= PARENB;
-        newtio.c_cflag &= ~PARODD;
-        newtio.c_iflag |= (INPCK | ISTRIP);
-        break;
-
-    case 'n':
-    case 'N':
-        newtio.c_cflag &= ~PARENB;
-        break;
-
-    default:
-        newtio.c_cflag &= ~PARENB;
-        break;
-    }
-
-    /* set the stop bits */
-    switch (nStop)
-    {
-    case 1:
-        newtio.c_cflag &= ~CSTOPB;
-        break;
-
-    case 2:
-        newtio.c_cflag |= CSTOPB;
-        break;
-
-    default:
-        newtio.c_cflag &= ~CSTOPB;
-        break;
-    }
-
-    /* set output and input baud rate */
-    switch (nSpeed)
-    {
-    case 0:
-        cfsetospeed(&newtio, B0);
-        cfsetispeed(&newtio, B0);
-        break;
-
-    case 50:
-        cfsetospeed(&newtio, B50);
-        cfsetispeed(&newtio, B50);
-        break;
-
-    case 75:
-        cfsetospeed(&newtio, B75);
-        cfsetispeed(&newtio, B75);
-        break;
-
-    case 110:
-        cfsetospeed(&newtio, B110);
-        cfsetispeed(&newtio, B110);
-        break;
-
-    case 134:
-        cfsetospeed(&newtio, B134);
-        cfsetispeed(&newtio, B134);
-        break;
-
-    case 150:
-        cfsetospeed(&newtio, B150);
-        cfsetispeed(&newtio, B150);
-        break;
-
-    case 200:
-        cfsetospeed(&newtio, B200);
-        cfsetispeed(&newtio, B200);
-        break;
-
-    case 300:
-        cfsetospeed(&newtio, B300);
-        cfsetispeed(&newtio, B300);
-        break;
-
-    case 600:
-        cfsetospeed(&newtio, B600);
-        cfsetispeed(&newtio, B600);
-        break;
-
-    case 1200:
-        cfsetospeed(&newtio, B1200);
-        cfsetispeed(&newtio, B1200);
-        break;
-
-    case 1800:
-        cfsetospeed(&newtio, B1800);
-        cfsetispeed(&newtio, B1800);
-        break;
-
-    case 2400:
-        cfsetospeed(&newtio, B2400);
-        cfsetispeed(&newtio, B2400);
-        break;
-
-    case 4800:
-        cfsetospeed(&newtio, B4800);
-        cfsetispeed(&newtio, B4800);
-        break;
-
-    case 9600:
-        cfsetospeed(&newtio, B9600);
-        cfsetispeed(&newtio, B9600);
-        break;
-
-    case 19200:
-        cfsetospeed(&newtio, B19200);
-        cfsetispeed(&newtio, B19200);
-        break;
-
-    case 38400:
-        cfsetospeed(&newtio, B38400);
-        cfsetispeed(&newtio, B38400);
-        break;
-
-    case 57600:
-        cfsetospeed(&newtio, B57600);
-        cfsetispeed(&newtio, B57600);
-        break;
-
-    case 115200:
-        cfsetospeed(&newtio, B115200);
-        cfsetispeed(&newtio, B115200);
-        break;
-
-    case 230400:
-        cfsetospeed(&newtio, B230400);
-        cfsetispeed(&newtio, B230400);
-        break;
-
-    default:
-        cfsetospeed(&newtio, B115200);
-        cfsetispeed(&newtio, B115200);
-        break;
-    }
-
-    /* set timeout in deciseconds for non-canonical read */
-    newtio.c_cc[VTIME] = 0;
-
-    /* set minimum number of characters for non-canonical read */
-    newtio.c_cc[VMIN] = 0;
-
-    /* flushes data received but not read */
-    tcflush(fd, TCIFLUSH);
-
-    /* set the parameters associated with the terminal from
-            the termios structure and the change occurs immediately */
-    if ((tcsetattr(fd, TCSANOW, &newtio)) != 0)
-    {
-        perror("set_port/tcsetattr");
+        printf("load or read xml file error\n");
         return -1;
+    }
+
+    /* 读取标签中的配置项 */
+    /* 端口号 */
+    if ((config_option =
+             config_label->FirstChildElement(option[0].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.port = atoi(config_option->GetText());
+
+    /* ip地址 */
+    if ((config_option =
+             config_label->FirstChildElement(option[1].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.ip = config_option->GetText();
+
+    /* 网关 */
+    if ((config_option =
+             config_label->FirstChildElement(option[2].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.gateway = config_option->GetText();
+
+    /* mac地址 */
+    if ((config_option =
+             config_label->FirstChildElement(option[3].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.mac = config_option->GetText();
+
+    /* 子网掩码 */
+    if ((config_option =
+             config_label->FirstChildElement(option[4].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.mask = config_option->GetText();
+
+    /* 阀组连接方式 */
+    if ((config_option =
+             config_label->FirstChildElement(option[5].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.valve_group = atoi(config_option->GetText());
+
+    if ((config_option =
+             config_label->FirstChildElement(option[6].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.valve_SEL = atoi(config_option->GetText());
+
+    /* 汇管压力连接方式 */
+    if ((config_option =
+             config_label->FirstChildElement(option[7].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.manifold_pressure = atoi(config_option->GetText());
+
+    if ((config_option =
+             config_label->FirstChildElement(option[8].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.manifold_pressure_id = atoi(config_option->GetText());
+
+    if ((config_option =
+             config_label->FirstChildElement(option[9].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.manifold_pressure_addr = atoi(config_option->GetText());
+
+    /* ID 16位的PAN ID */
+    if ((config_option =
+             config_label->FirstChildElement(option[10].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.xbee_id = config_option->GetText();
+
+    /* SC 7fff */
+    if ((config_option =
+             config_label->FirstChildElement(option[11].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.xbee_sc = config_option->GetText();
+
+    /* AO 0:<不接收ack>  1:<接收ack> */
+    if ((config_option =
+             config_label->FirstChildElement(option[12].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.xbee_ao = atoi(config_option->GetText());
+
+    /* CE 0:<路由器>  1:<协调器> */
+    if ((config_option =
+             config_label->FirstChildElement(option[13].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+    config_info.xbee_ce = atoi(config_option->GetText());
+
+    /* 配置的井口最大个数 */
+    if ((config_option =
+             config_label->FirstChildElement(option[14].c_str())) == nullptr)
+    {
+        debug("%s\n", "load or read xml file error\n");
+        return -1;
+    }
+
+    config_info.well_max_num = atoi(config_option->GetText());
+
+    if (config_info.valve_group > 0)
+    {
+        /* 添加阀组间设备 */
+        config_info.well_max_num++;
+    }
+
+    config_info.well_info = nullptr;
+    config_info.well_info = new struct well_info[config_info.well_max_num];
+
+    if (config_info.well_info == nullptr)
+    {
+        debug("%s\n", "new struct well_info error");
+        return -1;
+    }
+
+    /* 井口的配置信息 */
+    for (int i = 15; i < 31; i++)
+    {
+        if ((config_option =
+                 config_label->FirstChildElement(option[i].c_str())) == nullptr)
+        {
+            debug("%s\n", "load or read xml file error\n");
+            return -1;
+        }
+
+        ret = strtol(config_option->GetText(), &str, 16) & 0xff;
+
+        if ((ret & 0x80) != 0)
+        {
+            config_info.well_info[j].type = (ret & 0x70) >> 4;
+            config_info.well_info[j].id = (ret & 0xf) + 1;
+            config_info.well_info[j].addr = 0xffff;
+            j++;
+        }
+    }
+
+    if (config_info.valve_group > 0)
+    {
+
+        /* 添加阀组间设备 */
+        config_info.well_info[j].type = TYPE_VALVE_GROUP_DATA;
+
+        switch (config_info.valve_SEL)
+        {
+        case 0:
+            config_info.well_info[j].id = 0x7d;
+            break;
+
+        case 1:
+            config_info.well_info[j].id = 0x7e;
+            break;
+
+        case 2:
+            config_info.well_info[j].id = 0x7f;
+            break;
+
+        case 3:
+            config_info.well_info[j].id = 0x80;
+            break;
+
+        default:
+            config_info.well_info[j].id = 0x80;
+            break;
+        }
+        config_info.well_info[j].addr = 0xffff;
+
     }
 
     return 0;
-}
-
-/**
- * @brief: open serial port
- * @Param: dir: serial device path
- */
-int static open_port(char *dir)
-{
-    int fd;
-
-    fd = open(dir, O_RDWR);
-
-    if (fd < 0)
-    {
-        perror("open_port");
-    }
-    return fd;
-}
-
-/**
- * @brief: main function
- * @Param: argc: number of parameters
- * @Param: argv: parameters list
- */
-int static rs485_enable(const int fd, const RS485_ENABLE_t enable)
-{
-    struct serial_rs485 rs485conf;
-    int res;
-
-    /* Get configure from device */
-    res = ioctl(fd, TIOCGRS485, &rs485conf);
-
-    if (res < 0)
-    {
-        perror("Ioctl error on getting 485 configure:");
-        close(fd);
-        return res;
-    }
-
-    /* Set enable/disable to configure */
-    if (enable)
-    { // Enable rs485 mode
-        rs485conf.flags |= SER_RS485_ENABLED;
-    }
-    else
-    { // Disable rs485 mode
-        rs485conf.flags &= ~(SER_RS485_ENABLED);
-    }
-
-    rs485conf.delay_rts_before_send = 0x00000004;
-
-    /* Set configure to device */
-    res = ioctl(fd, TIOCSRS485, &rs485conf);
-
-    if (res < 0)
-    {
-        perror("Ioctl error on setting 485 configure:");
-        close(fd);
-    }
-
-    return res;
-}
-
-int static change_bit_rs485(int fd, int value)
-{
-    struct serial_rs485 rs485conf;
-    int res;
-
-    /* Get configure from device */
-    res = ioctl(fd, TIOCGRS485, &rs485conf);
-
-    if (res < 0)
-    {
-        perror("Ioctl error on getting 485 configure:");
-        close(fd);
-        return res;
-    }
-
-    /*rs485 send - recv*/
-    if (value == 1) rs485conf.flags |= SER_RS485_RTS_AFTER_SEND;
-    else if (value == 0) rs485conf.flags &= ~SER_RS485_RTS_AFTER_SEND;
-    else;
-
-    /* Set configure to device */
-    res = ioctl(fd, TIOCSRS485, &rs485conf);
-
-    if (res < 0)
-    {
-        perror("Ioctl error on setting 485 configure:");
-        close(fd);
-    }
-    return res;
 }
 
 int MultiTask::rs485(struct state_machine_current_info *curr_info,
@@ -339,12 +316,23 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
     /* 开始组装RTU数据 */
     if (curr_info->store_type == TYPE_VALVE_GROUP_DATA)
     {
-        // to_485_data[0] = class_id.valve_group_id[curr_info->id_oil_well - 1];
-        to_485_data[0] = c_info.w_info[curr_info->id].id;
+        //to_485_data[0] = config_info.well_info[curr_info->id].id;
+        if (config_info.well_info[curr_info->id].id == 128)
+        {
+            to_485_data[0] = 16;
+        }
+        else if (config_info.well_info[curr_info->id].id == 127)
+        {
+            to_485_data[0] = 15;
+        }
+        else if (config_info.well_info[curr_info->id].id == 126)
+        {
+            to_485_data[0] = 14;
+        }
     }
     else
     {
-        to_485_data[0] = 0x80;
+        to_485_data[0] = 16;
     }
 
     to_485_data[1] = curr_info->func_code;
@@ -368,7 +356,12 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
     while (err_num < 2)
     {
         /* 发送数据 */
-        write(rs485_info.fd, to_485_data, 8);
+        //write(rs485_info.fd, to_485_data, 8);
+    #ifdef ARMCQ
+        usart_send_data(rs485_info.fd, to_485_data, 8);
+    #else // ifdef ARMCQ
+        uart_485->Write(to_485_data, 8);
+    #endif // ifdef ARMCQ
 
         usleep(20000); // 40ms
 
@@ -376,8 +369,18 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
         debug("%s\n", "接收的rs485数据帧>>");
 
         /* 等待接收数据 */
-        change_bit_rs485(rs485_info.fd, 0); // recv mode
-        ret = read(rs485_info.fd, from_485_data, sizeof(from_485_data));
+        //ret = read(rs485_info.fd, from_485_data, sizeof(from_485_data));
+    #ifdef ARMCQ
+        ret = usart_rev_data(rs485_info.fd, from_485_data);
+    #else // ifdef ARMCQ
+        ret = uart_485->Read(from_485_data, 256, 1000);
+
+        for (int i = 0; i < curr_info->addr_len * 2 + 5; i++)
+        {
+            debug("%.2x ", from_485_data[i]);
+        }
+        debug("%s\n", "");
+    #endif // ifdef ARMCQ
 
         if (ret <= 0)
         {
@@ -385,11 +388,11 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
             continue;
         }
 
-        for (int i = 0; i < ret; i++)
-        {
-            debug("[%x]", from_485_data[i]);
-        }
-        debug("%s\n", "");
+        // for (int i = 0; i < ret; i++)
+        // {
+        //     debug("[%x]", from_485_data[i]);
+        // }
+        // debug("%s\n", "");
         break;
     }
 
@@ -440,264 +443,6 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
     return 0;
 }
 
-int MultiTask::config_manage()
-{
-    uint8_t ret = 0;
-    int     j = 0;
-    char   *str;
-    string  option[30] = {
-        "PORT",
-        "IP",
-        "GATEWAY",
-        "MAC",
-        "MASK",
-        "VALVE_GROUP",
-        "VALVE_SEL",
-        "MANIFOLD_PRESSURE",
-        "MANIFOLD_PRESSURE_ID",
-        "XBEE_ID",
-        "XBEE_SC",
-        "XBEE_AO",
-        "XBEE_CE",
-        "WELLHEAD_MAX_NUM",
-        "WELLHEAD_1",
-        "WELLHEAD_2",
-        "WELLHEAD_3",
-        "WELLHEAD_4",
-        "WELLHEAD_5",
-        "WELLHEAD_6",
-        "WELLHEAD_7",
-        "WELLHEAD_8",
-        "WELLHEAD_9",
-        "WELLHEAD_10",
-        "WELLHEAD_11",
-        "WELLHEAD_12",
-        "WELLHEAD_13",
-        "WELLHEAD_14",
-        "WELLHEAD_15",
-        "WELLHEAD_16"
-    };
-
-    // const char *path = "/home/wgm/wgm/PROJECT/CQ_PROJECT/build/myconfig.xml";
-    const char *path = "./config/myconfig.xml";
-
-    /* ---------- 打开并读取配置文件 ----------- */
-    if (config.LoadFile(path) !=
-        XML_SUCCESS)
-    {
-        /* 读取文件失败 */
-        printf("load file error !\n");
-        is_error = true;
-        return -1;
-    }
-
-    /* 读取标签 */
-    if ((config_label = config.FirstChildElement("CONFIG")) == nullptr)
-    {
-        printf("load or read xml file error\n");
-        is_error = true;
-        return -1;
-    }
-
-    /* 读取标签中的配置项 */
-    /* 端口号 */
-    if ((config_option =
-             config_label->FirstChildElement(option[0].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.port = atoi(config_option->GetText());
-
-    /* ip地址 */
-    if ((config_option =
-             config_label->FirstChildElement(option[1].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.ip = config_option->GetText();
-
-    /* 网关 */
-    if ((config_option =
-             config_label->FirstChildElement(option[2].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.gateway = config_option->GetText();
-
-    /* mac地址 */
-    if ((config_option =
-             config_label->FirstChildElement(option[3].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.mac = config_option->GetText();
-
-    /* 子网掩码 */
-    if ((config_option =
-             config_label->FirstChildElement(option[4].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.mask = config_option->GetText();
-
-    /* 阀组连接方式 */
-    if ((config_option =
-             config_label->FirstChildElement(option[5].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.valve_group = atoi(config_option->GetText());
-
-    if ((config_option =
-             config_label->FirstChildElement(option[6].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.valve_SEL = atoi(config_option->GetText());
-
-    /* 汇管压力连接方式 */
-    if ((config_option =
-             config_label->FirstChildElement(option[7].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.manifold_pressure = atoi(config_option->GetText());
-
-    if ((config_option =
-             config_label->FirstChildElement(option[8].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.manifold_pressure_id = atoi(config_option->GetText());
-
-    /* ID 16位的PAN ID */
-    if ((config_option =
-             config_label->FirstChildElement(option[9].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.xbee_id = config_option->GetText();
-
-    /* SC 7fff */
-    if ((config_option =
-             config_label->FirstChildElement(option[10].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.xbee_sc = config_option->GetText();
-
-    /* AO 0:<不接收ack>  1:<接收ack> */
-    if ((config_option =
-             config_label->FirstChildElement(option[11].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.xbee_ao = atoi(config_option->GetText());
-
-    /* CE 0:<路由器>  1:<协调器> */
-    if ((config_option =
-             config_label->FirstChildElement(option[12].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-    c_info.xbee_ce = atoi(config_option->GetText());
-
-    /* 配置的井口最大个数 */
-    if ((config_option =
-             config_label->FirstChildElement(option[13].c_str())) == nullptr)
-    {
-        debug("%s\n", "load or read xml file error\n");
-        return -1;
-    }
-
-    c_info.well_max_num = atoi(config_option->GetText());
-
-    // if (c_info.valve_group == 1)
-    // {
-
-    /* 添加阀组间设备 */
-    c_info.well_max_num++;
-
-    // }
-
-    c_info.w_info = nullptr;
-    c_info.w_info = new struct well_info[c_info.well_max_num];
-
-    if (c_info.w_info == nullptr)
-    {
-        debug("%s\n", "new struct well_info error");
-        return -1;
-    }
-
-    /* 井口的配置信息 */
-    for (int i = 14; i < 30; i++)
-    {
-        if ((config_option =
-                 config_label->FirstChildElement(option[i].c_str())) == nullptr)
-        {
-            debug("%s\n", "load or read xml file error\n");
-            return -1;
-        }
-
-        ret = strtol(config_option->GetText(), &str, 16) & 0xff;
-
-        if ((ret & 0x80) != 0)
-        {
-            c_info.w_info[j].type = (ret & 0x70) >> 4;
-            c_info.w_info[j].id = (ret & 0xf) + 1;
-            c_info.w_info[j].addr = 0xffff;
-            j++;
-        }
-    }
-
-    // if (c_info.valve_group == 1)
-    // {
-
-    /* 添加阀组间设备 */
-    c_info.w_info[j].type = 2;
-
-    switch (c_info.valve_SEL)
-    {
-    case 0:
-        c_info.w_info[j].id = 0x7d;
-        break;
-
-    case 1:
-        c_info.w_info[j].id = 0x7e;
-        break;
-
-    case 2:
-        c_info.w_info[j].id = 0x7f;
-        break;
-
-    case 3:
-        c_info.w_info[j].id = 0x80;
-        break;
-
-    default:
-        c_info.w_info[j].id = 0x80;
-        break;
-    }
-    c_info.w_info[j].addr = 0xffff;
-
-    // }
-
-    return 0;
-}
-
 /**
  * @brief 用于在与上位机通讯线程中给ZigBee发送数据过程
  *
@@ -709,7 +454,6 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
 {
     int ret = 0;
     uint16_t crc_code = 0;
-    char    *rrr;
 
     /* 保存要发送给上位机的总数据 */
     std::vector<uint8_t> to_tcp_data;
@@ -731,47 +475,117 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
 
     uint64_t add64 = 0;
 
+    time_t tim = time(nullptr);
+
+    /* 用于判断xbee数据是否发送接收成功，可以返回给上位机 */
+    bool is_ready_data = false;
+
+    /* 用于组装0x10帧时的一个循环标志量 */
+    int group_0x10_sign = 0;
+
+    /* 设置frame ID ，0为不响应，1为响应 */
+    uint8_t set_frame_id = 0;
+
     /* 将要请求的寄存器数据长度保存在to_len */
-    to_len = tcp_data->len;
+    if (tcp_data->func_code == 0x06)
+    {
+        to_len = 1;
+    }
+    else
+    {
+        to_len = tcp_data->len;
+    }
+
+    /* ############ 上锁 ############ */
+    m_tx_rx.lock();
 
     while (to_len > 0)
     {
         memset(rtu_data, 0, sizeof(rtu_data));
+        to_tcp_data.clear();
 
-        /* 复制原有内容 */
-        to_zigbee.data[0] = tcp_data->rtu_id;
-        to_zigbee.data[1] = tcp_data->func_code;
-
-        if (to_len > 40)
+        /* 判断功能码的类型 */
+        if (tcp_data->func_code == 0x06)
         {
-            to_zigbee.data[2] = (tcp_data->start_addr + count * 40) >> 8;
-            to_zigbee.data[3] = (tcp_data->start_addr + count * 40) & 0xff;
-            to_zigbee.data[4] = 0;
-            to_zigbee.data[5] = 40;
+            /* 组装下发给各井口的指令帧 */
+            to_zigbee.data[0] = tcp_data->rtu_id;
+            to_zigbee.data[1] = tcp_data->func_code;
+            to_zigbee.data[2] = tcp_data->start_addr >> 8;
+            to_zigbee.data[3] = tcp_data->start_addr & 0xff;
+            to_zigbee.data[4] = tcp_data->set_val >> 8;
+            to_zigbee.data[5] = tcp_data->set_val & 0xff;
+
+            /* 填充 CRC 校验码 */
+            crc_code = crc16(to_zigbee.data, 6);
+            to_zigbee.data[6] = crc_code >> 8;
+            to_zigbee.data[7] = crc_code & 0x00FF;
+            to_zigbee.len = 8;
+
+            set_frame_id = DEFAULT_FRAME_ID;
         }
-        else
+        else if (tcp_data->func_code == 0x10)
         {
-            to_zigbee.data[2] = (tcp_data->start_addr + count * 40) >> 8;
-            to_zigbee.data[3] = (tcp_data->start_addr + count * 40) & 0xff;
-            to_zigbee.data[4] = to_len >> 8;
-            to_zigbee.data[5] = to_len & 0xff;
+            /* 组装下发给各井口的指令帧 */
+            to_zigbee.data[0] = tcp_data->rtu_id;
+            to_zigbee.data[1] = tcp_data->func_code;
+            to_zigbee.data[2] = tcp_data->start_addr >> 8;
+            to_zigbee.data[3] = tcp_data->start_addr & 0xff;
+            to_zigbee.data[4] = tcp_data->len >> 8;
+            to_zigbee.data[5] = tcp_data->len & 0xff;
+            to_zigbee.data[6] = tcp_data->byte_count;
+
+            for (int i = 0; i < (tcp_data->byte_count / 2); i++)
+            {
+                to_zigbee.data[7 + i] = tcp_data->value[i] >> 8;
+                to_zigbee.data[8 + i] = tcp_data->value[i] & 0xff;
+                group_0x10_sign = i;
+            }
+
+            /* 填充 CRC 校验码 */
+            crc_code = crc16(to_zigbee.data, (8 + group_0x10_sign));
+            to_zigbee.data[9 + group_0x10_sign] = crc_code >> 8;
+            to_zigbee.data[10 + group_0x10_sign] = crc_code & 0x00FF;
+            to_zigbee.len = 11 + group_0x10_sign;
+
+            set_frame_id = DEFAULT_FRAME_ID;
+        }
+        else if (tcp_data->func_code == 0x03)
+        {
+            /* 复制原有内容 */
+            to_zigbee.data[0] = tcp_data->rtu_id;
+            to_zigbee.data[1] = tcp_data->func_code;
+
+            if (to_len > 40)
+            {
+                to_zigbee.data[2] = (tcp_data->start_addr + count * 40) >> 8;
+                to_zigbee.data[3] = (tcp_data->start_addr + count * 40) & 0xff;
+                to_zigbee.data[4] = 0;
+                to_zigbee.data[5] = 40;
+            }
+            else
+            {
+                to_zigbee.data[2] = (tcp_data->start_addr + count * 40) >> 8;
+                to_zigbee.data[3] = (tcp_data->start_addr + count * 40) & 0xff;
+                to_zigbee.data[4] = to_len >> 8;
+                to_zigbee.data[5] = to_len & 0xff;
+            }
+
+            /* 填充 CRC 校验码 */
+            crc_code = crc16(to_zigbee.data, 6);
+            to_zigbee.data[6] = crc_code >> 8;
+            to_zigbee.data[7] = crc_code & 0x00FF;
+            to_zigbee.len = 8;
+
+            set_frame_id = NO_RESPONSE_FRAME_ID;
         }
 
-        /* 填充 CRC 校验码 */
-        crc_code = crc16(to_zigbee.data, 6);
-        to_zigbee.data[6] = crc_code >> 8;
-        to_zigbee.data[7] = crc_code & 0x00FF;
-        to_zigbee.len = 8;
-
-        uint16_t addr16 = strtol(c_info.xbee_id.c_str(), &rrr, 16) & 0xffff;
-
-        for (int i = 0; i < c_info.well_max_num; i++)
+        for (int i = 0; i < config_info.well_max_num; i++)
         {
-            if (c_info.w_info[i].id == tcp_data->rtu_id)
+            if (config_info.well_info[i].id == tcp_data->rtu_id)
             {
                 XBeeAddress64 addr64 = XBeeAddress64(
-                    c_info.w_info[i].addr >> 32,
-                    c_info.w_info[i].addr &
+                    config_info.well_info[i].addr >> 32,
+                    config_info.well_info[i].addr &
                     0xffffffff);
 
                 for (int i = 0; i < 8; i++)
@@ -782,23 +596,17 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
 
                 while (err_num < 2)
                 {
-                    /* ############ 上锁 ############ */
-                    m_tx_rx.lock();
-
                     /* 给井口发送ZigBee数据 */
                     xbeeTx(*xbee_handler,
                            to_zigbee.data,
                            to_zigbee.len,
                            addr64,
-                           addr16);
+                           set_frame_id);
 
                     debug("\n--- %s ---\n", " xbeeTx has been sent");
 
                     ret = xbeeRx(*xbee_handler, rtu_data, &xbeeRtulen,
                                  &add64);
-
-                    /* ############ 解锁 ########### */
-                    m_tx_rx.unlock();
 
                     // for (int i = 0; i < xbeeRtulen; i++)
                     // {
@@ -810,11 +618,24 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
                     // debug("ret>>%d\n", ret);
 
                     /* 接收井口的ACK */
-                    if (ret <= 0)
+                    if (tcp_data->func_code == 0x03)
                     {
-                        err_num++;
-                        continue;
+                        if ((ret <= 0) || \
+                            ((to_zigbee.data[5] * 2) != rtu_data[2]))
+                        {
+                            err_num++;
+                            continue;
+                        }
                     }
+                    else
+                    {
+                        if (ret <= 0)
+                        {
+                            err_num++;
+                            continue;
+                        }
+                    }
+
 
                     debug("--- %s ---\n", " xbeeRx has received");
                     break;
@@ -825,101 +646,40 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
 
         if (err_num >= 2)
         {
-            debug("%s\n", "xbee rx error");
+            debug("%s\n", "xbee rx gt error");
             break;
         }
 
+        debug("+++++time >> %ld\n", time(nullptr) - tim);
+
         /* 将 xbeeRx 数据存入共享数据区 */
-        for (int i = 0; i < xbeeRtulen - 5; i++)
+        if ((tcp_data->func_code == 0x06) || (tcp_data->func_code == 0x10))
         {
-            to_tcp_data.push_back(rtu_data[i + 3]);
+            for (int i = 0; i < xbeeRtulen - 2; i++)
+            {
+                to_tcp_data.push_back(rtu_data[i]);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < xbeeRtulen - 5; i++)
+            {
+                to_tcp_data.push_back(rtu_data[i + 3]);
+            }
         }
 
         count++;
         to_len -= 40;
-    }
-#if 0
-
-    /* 复制原有内容 */
-
-    to_zigbee.data[0] = tcp_data->rtu_id;
-    to_zigbee.data[1] = tcp_data->func_code;
-    to_zigbee.data[2] = tcp_data->start_addr >> 8;
-    to_zigbee.data[3] = tcp_data->start_addr & 0xff;
-    to_zigbee.data[4] = tcp_data->len >> 8;
-    to_zigbee.data[5] = tcp_data->len & 0xff;
-
-    /* 填充 CRC 校验码 */
-    crc_code = crc16(to_zigbee.data, 6);
-    to_zigbee.data[6] = crc_code >> 8;
-    to_zigbee.data[7] = crc_code & 0x00FF;
-    to_zigbee.len = 8;
-
-    uint16_t addr16 = strtol(c_info.xbee_id.c_str(), &rrr, 16) & 0xffff;
-
-    for (int i = 0; i < c_info.well_max_num; i++)
-    {
-        if (c_info.w_info[i].id == tcp_data->rtu_id)
-        {
-            XBeeAddress64 addr64 = XBeeAddress64(
-                c_info.w_info[i].addr >> 32,
-                c_info.w_info[i].addr &
-                0xffffffff);
-
-            while (err_num < 2)
-            {
-                /* ############ 上锁 ############ */
-                m_tx_rx.lock();
-
-                /* 给井口发送ZigBee数据 */
-                xbeeTx(*xbee_handler,
-                       to_zigbee.data,
-                       to_zigbee.len,
-                       addr64,
-                       addr16);
-
-                debug("\n--- %s ---\n", " xbeeTx has been sent");
-
-                ret = xbeeRx(*xbee_handler, rtu_data, &xbeeRtulen,
-                             &add64);
-
-                /* ############ 解锁 ########### */
-                m_tx_rx.unlock();
-
-                for (int i = 0; i < xbeeRtulen; i++)
-                {
-                    debug("rtu_data>>(%x)", rtu_data[i]);
-                }
-                debug("%s\n", "");
-                printf("add64>>%x  %x\n", uint32_t(add64 >> 32),
-                       uint32_t(add64 & 0xffffffff));
-                debug("ret>>%d\n", ret);
-
-                /* 接收井口的ACK */
-                if (ret <= 0)
-                {
-                    err_num++;
-                    continue;
-                }
-
-                debug("--- %s ---\n", " xbeeRx has received");
-            }
-            break;
-        }
+        is_ready_data = true;
     }
 
-    if (err_num >= 2)
+    /* ############ 解锁 ########### */
+    m_tx_rx.unlock();
+
+    if (is_ready_data == false)
     {
-        debug("%s\n", "xbee rx error");
         return -1;
     }
-
-    /* 将 xbeeRx 数据存入共享数据区 */
-    for (int i = 0; i < xbeeRtulen - 5; i++)
-    {
-        tcp_data->value[i] = rtu_data[i + 3];
-    }
-#endif // if 0
 
     /* 组装发送的数据 */
     to_tcp_frame.clear();
@@ -932,31 +692,37 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
     to_tcp_frame.push_back((tcp_data->len * 2 + 3) >> 8);
     to_tcp_frame.push_back((tcp_data->len * 2 + 3) & 0xff);
 
-    // to_tcp_frame += tcp_data->frame_header[0];
-    // to_tcp_frame += tcp_data->frame_header[1];
-    // to_tcp_frame += tcp_data->frame_header[2];
-    // to_tcp_frame += tcp_data->frame_header[3];
-    // to_tcp_frame += (tcp_data->len * 2 + 3) >> 8;
-    // to_tcp_frame += (tcp_data->len * 2 + 3) & 0xff;
-
     /* 加站号，功能码，数据长度 */
-    to_tcp_frame.push_back(tcp_data->rtu_id);
-    to_tcp_frame.push_back(tcp_data->func_code);
-    to_tcp_frame.push_back((tcp_data->len * 2) & 0xff);
-
-    // to_tcp_frame += tcp_data->rtu_id;
-    // to_tcp_frame += tcp_data->func_code;
-    // to_tcp_frame += (tcp_data->len * 2) & 0xff;
-
-    /* 加数据 */
-    for (int i = 0; i < tcp_data->len * 2; i++)
+    if ((tcp_data->func_code == 0x06) || (tcp_data->func_code == 0x10))
     {
-        to_tcp_frame.push_back(to_tcp_data[i]);
+        for (size_t i = 0; i < to_tcp_data.size(); i++)
+        {
+            to_tcp_frame.push_back(to_tcp_data[i]);
+        }
+    }
+    else
+    {
+        to_tcp_frame.push_back(tcp_data->rtu_id);
+        to_tcp_frame.push_back(tcp_data->func_code);
+        to_tcp_frame.push_back((tcp_data->len * 2) & 0xff);
+
+        /* 加数据 */
+        for (int i = 0; i < tcp_data->len * 2; i++)
+        {
+            to_tcp_frame.push_back(to_tcp_data[i]);
+        }
     }
 
     std::string to_data(to_tcp_frame.begin(), to_tcp_frame.end());
 
-    debug("%s\n", "要发送给上位机的功图数据>>");
+    if ((tcp_data->func_code == 0x06) || (tcp_data->func_code == 0x10))
+    {
+        debug("%s\n", "要发送给上位机命令响应帧>>");
+    }
+    else
+    {
+        debug("%s\n", "要发送给上位机的功图数据>>");
+    }
 
     for (size_t i = 0; i < to_tcp_frame.size(); i++)
     {
@@ -972,6 +738,7 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
               " modbus TCP send error");
         return -1;
     }
+    debug("time >> %ld\n", time(nullptr) - tim);
     debug("--- %s ---\n",
           " ##########modbus TCP  has been sent############");
 
@@ -990,15 +757,39 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
 {
     int ret = 0;
 
-    int id = 0;
+    /* 站号对应的位置 */
+    int id_site = 0;
 
-    /* 用于获取当前时间 */
+    /* 用于判断是否是从井场40051(汇管压力)开始读取多位寄存器值 */
+    int st = 0;
 
-    // time_t cur_time = time(nullptr);
+    /* 用于保存阀组间寄存器起始地址与100的整除值 */
+    int ch = 0;
+
+    /* 用于保存起始地址加长度与对应寄存器区间最大值的差值 */
+    int dif = 0;
+
+    /* 用于保存。。。*/
+    int dif_len = 0;
 
     /* 用于组合发送给上位机的数据帧 */
-
     std::vector<uint8_t> to_tcp_frame;
+
+    /* 判断站号是否在当前配置相里，没有则退出当前函数 */
+    while (id_site < config_info.well_max_num)
+    {
+        if (tcp_data->rtu_id != config_info.well_info[id_site].id)
+        {
+            id_site++;
+            continue;
+        }
+        break;
+    }
+
+    if (id_site >= config_info.well_max_num)
+    {
+        return -1;
+    }
 
     /* 组装帧头 */
     to_tcp_frame.push_back(tcp_data->frame_header[0]);
@@ -1008,232 +799,237 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
     to_tcp_frame.push_back((tcp_data->len * 2 + 3) >> 8);
     to_tcp_frame.push_back((tcp_data->len * 2 + 3) & 0xff);
 
-    /* 加站号，功能码，数据长度 */
+    /* 加站号，功能码 */
     to_tcp_frame.push_back(tcp_data->rtu_id);
     to_tcp_frame.push_back(tcp_data->func_code);
-    to_tcp_frame.push_back((tcp_data->len * 2) & 0xff);
 
-    int i = 0;
-
-    while (i < c_info.well_max_num)
+    /* 请求读寄存器 */
+    if (tcp_data->func_code == 0x03)
     {
-        if (tcp_data->rtu_id != c_info.w_info[i].id)
+        /* 加寄存器长度 */
+        to_tcp_frame.push_back((tcp_data->len * 2) & 0xff);
+
+        /* 油井数据类型 */
+        if (config_info.well_info[id_site].type == TYPE_OIL_WELL_DATA)
         {
-            i++;
-            continue;
-        }
-        break;
-    }
-
-    if (i >= c_info.well_max_num)
-    {
-        return -1;
-    }
-
-    while (tcp_data->rtu_id != c_info.w_info[id].id)
-    {
-        id++;
-    }
-    debug("id>>%d\n", id);
-
-    if ((tcp_data->func_code == 0x03) && (c_info.w_info[id].type == 0))
-    {
-        /* 上锁 */
-        m_rd_db.lock();
-
-        /* 判断查询的数据为哪一部分 */
-        if ((tcp_data->start_addr >= 0) &&
-            ((tcp_data->start_addr + tcp_data->len) <= 200))
-        {
-            /* 基础数据已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = tcp_data->start_addr;
-                 i < (tcp_data->start_addr + tcp_data->len); i++)
+            if((tcp_data->start_addr >= 0) && (tcp_data->start_addr <= 209))
             {
-                to_tcp_frame.push_back(to_db.rd_db[id].basic_value[i] >> 8);
-                to_tcp_frame.push_back(to_db.rd_db[id].basic_value[i] & 0xff);
+                dif = tcp_data->start_addr + tcp_data->len - 210;
+                if(dif > 0)
+                {
+                    dif_len = tcp_data->len - dif;
+                }
+                else
+                {
+                    dif_len = tcp_data->len;
+                }
+                
+                /* ###### 上锁 ###### */
+                m_rd_db.lock();
+                /* 基础数据已经准备好，可以读取并发给上位机 */
+                for (uint16_t i = tcp_data->start_addr;
+                    i < (tcp_data->start_addr + dif_len); i++)
+                {
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_site].oil_basic_data[i] >> 8);
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_site].oil_basic_data[i] & 0xff);
+                }
+                /* ###### 解锁 ###### */
+                m_rd_db.unlock();
+
+                if(dif > 0)
+                {
+                    for(int i = 0; i < dif; i++)
+                    {
+                        to_tcp_frame.push_back(0);
+                        to_tcp_frame.push_back(0);
+                    }
+                }
+                
+            }
+            else if((tcp_data->start_addr >= 1410) && (tcp_data->start_addr <= 1419))
+            {
+                dif = tcp_data->start_addr + tcp_data->len - 1420;
+                if(dif > 0)
+                {
+                    dif_len = tcp_data->len - dif;
+                }
+                else
+                {
+                    dif_len = tcp_data->len;
+                }
+
+                /* #######上锁 ###### */
+                m_rd_db.lock();
+
+                /* 基础数据已经准备好，可以读取并发给上位机 */
+                for (uint16_t i = tcp_data->start_addr - 1200;
+                     i < (tcp_data->start_addr - 1200 + dif_len); i++)
+                {
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_site].oil_basic_data[i] >> 8);
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_site].oil_basic_data[i] & 0xff);
+                }
+
+                /* ###### 解锁 ###### */
+                m_rd_db.unlock();
+
+                if(dif > 0)
+                {
+                    for(int i = 0; i < dif; i++)
+                    {
+                        to_tcp_frame.push_back(0);
+                        to_tcp_frame.push_back(0);
+                    }
+                }
+
+            }
+            else if((tcp_data->start_addr >= 210) && (tcp_data->start_addr <= 1409))
+            {
+                dif = tcp_data->start_addr + tcp_data->len - 1410;
+                if(dif <= 0)
+                {
+                    dif = 0;
+                }
+
+                debug("%s\n", "*******接收并发送功图数据*******");
+                
+                //TODO：此处并未像之前一般，对请求的数据长度做判断处理
+                if (to_xbee(tcp_data) < 0)
+                {
+                    debug("%s\n", "*******发送功图数据失败*******");
+                    return -1;
+                }
+                return 0;
+            }
+
+            else
+            {
+                ret = -1;
             }
         }
-        else if ((tcp_data->start_addr >= 200) &&
-                 ((tcp_data->start_addr + tcp_data->len) <= 210))
+
+        /* 水井数据类型 */
+        else if (config_info.well_info[id_site].type == TYPE_WATER_WELL_DATA)
         {
-            /* 基础数据(功图基础数据1)已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = (tcp_data->start_addr - 200);
-                 i < ((tcp_data->start_addr - 200) + tcp_data->len);
-                 i++)
+            /* 判断查询的数据为哪一部分 */
+            if ((tcp_data->start_addr >= 0) && \
+                ((tcp_data->start_addr + tcp_data->len) <= 20))
             {
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].ind_diagram_basic_val[i] >> 8);
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].ind_diagram_basic_val[i] & 0xff);
+                /* ###### 上锁 ###### */
+                m_rd_db.lock();
+
+                /* 基础数据已经准备好，可以读取并发给上位机 */
+                for (uint16_t i = tcp_data->start_addr;
+                     i < (tcp_data->start_addr + tcp_data->len); i++)
+                {
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_site].water_well_data[i] >> 8);
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_site].water_well_data[i] & 0xff);
+                }
+
+                /* ###### 解锁 ###### */
+                m_rd_db.unlock();
+            }
+            else
+            {
+                ret = -1;
             }
         }
-        else if ((tcp_data->start_addr >= 1410) &&
-                 ((tcp_data->start_addr + tcp_data->len) <= 1420))
-        {
-            /* 基础数据(功图基础数据2)已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = (tcp_data->start_addr - 1410);
-                 i < ((tcp_data->start_addr - 1410) + tcp_data->len);
-                 i++)
-            {
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].ind_diagram_basic_val[i + 7] >> 8);
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].ind_diagram_basic_val[i + 7] & 0xff);
-            }
-        }
 
-        /* 解锁 */
-        m_rd_db.unlock();
-
-        if ((tcp_data->start_addr >= 210) &&
-            ((tcp_data->start_addr + tcp_data->len) <= 1410))
+        /* 阀组间数据类型 */
+        else if (config_info.well_info[id_site].type == TYPE_VALVE_GROUP_DATA)
         {
-            /* 功图数据已经准备好 */
-
-            // if ((cur_time - to_db.rd_db[id].cur_time_diagram) < 60)
-            // {
-            //     /* 如果临时缓存区里的功图数据采集时间小于60秒，则返回缓存区里的功图数据 */
-            //     for (uint16_t i = (tcp_data->start_addr - 210);
-            //          i < ((tcp_data->start_addr - 210) + tcp_data->len);
-            //          i++)
-            //     {
-            //         to_tcp_frame.push_back(
-            //             to_db.rd_db[id].ind_diagram_basic_val[i] >> 8);
-            //         to_tcp_frame.push_back(
-            //             to_db.rd_db[id].ind_diagram_basic_val[i] & 0xff);
-            //     }
-            // }
-            // else
-            // {
-            //     if (to_xbee(tcp_data) < 0)
-            //     {
-            //         ret = -1;
-            //     }
-            //     return 0;
-            // }
-
-            debug("%s\n", "*******接收并发送功图数据*******");
-
-            if (to_xbee(tcp_data) < 0)
-            {
-                debug("%s\n", "*******发送功图数据失败*******");
-                return -1;
-            }
-            return 0;
-        }
-        else
-        {
-            ret = -1;
-
-            // return -1;
-        }
-    }
-    else if ((tcp_data->func_code == 0x03) && (c_info.w_info[id].type == 2))
-    {
-        /* 上锁 */
-        m_rd_db.lock();
-
-        /* 判断查询的数据为哪一部分 */
-        if ((tcp_data->start_addr >= 0) &&
-            ((tcp_data->start_addr + tcp_data->len) <= 60))
-        {
-            /* 阀组间数据已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = tcp_data->start_addr;
-                 i < (tcp_data->start_addr + tcp_data->len); i++)
-            {
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i] >> 8);
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i] & 0xff);
-            }
-        }
-        else if ((tcp_data->start_addr >= 100) &&
-                 ((tcp_data->start_addr + tcp_data->len) <= 107))
-        {
-            /* 基础数据(功图基础数据2)已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = (tcp_data->start_addr - 100);
-                 i < ((tcp_data->start_addr - 100) + tcp_data->len);
-                 i++)
-            {
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i + 60] >> 8);
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i + 60] & 0xff);
-            }
-        }
-        else if ((tcp_data->start_addr >= 200) &&
-                 ((tcp_data->start_addr + tcp_data->len) <= 207))
-        {
-            /* 基础数据(功图基础数据2)已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = (tcp_data->start_addr - 200);
-                 i < ((tcp_data->start_addr - 200) + tcp_data->len);
-                 i++)
-            {
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i + 67] >> 8);
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i + 67] & 0xff);
-            }
-        }
-        else if ((tcp_data->start_addr >= 300) &&
-                 ((tcp_data->start_addr + tcp_data->len) <= 307))
-        {
-            /* 基础数据(功图基础数据2)已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = (tcp_data->start_addr - 300);
-                 i < ((tcp_data->start_addr - 300) + tcp_data->len);
-                 i++)
-            {
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i + 74] >> 8);
-                to_tcp_frame.push_back(
-                    to_db.rd_db[id].valve_group_data[i + 74] & 0xff);
-            }
-        }
-        else
-        {
-            ret = -1;
-        }
-
-        /* 解锁 */
-        m_rd_db.unlock();
-    }
-    else if ((tcp_data->func_code == 0x04) && (tcp_data->rtu_id <= 16) &&
-             (tcp_data->rtu_id > 0))
-    {
-        if ((tcp_data->start_addr >= 0) &&
-            ((tcp_data->len + tcp_data->start_addr) <= 8))
-        {
-            /* 上锁 */
+            /* ###### 上锁 ###### */
             m_rd_db.lock();
 
-            /* 汇管压力数据已经准备好，可以读取并发给上位机 */
-            for (uint16_t i = tcp_data->start_addr;
-                 i < (tcp_data->start_addr + tcp_data->len); i++)
+            if ((tcp_data->start_addr >= 50) && (tcp_data->len <= 55))
             {
-                to_tcp_frame.push_back(
-                    to_db.rd_db[tcp_data->rtu_id].manifold_pressure[i] >> 8);
-                to_tcp_frame.push_back(
-                    to_db.rd_db[tcp_data->rtu_id].manifold_pressure[i] & 0xff);
+                /* 汇管压力 */
+                if (tcp_data->start_addr == 50)
+                {
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[to_id_valve].manifold_pressure[0] >> 16);
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[to_id_valve].manifold_pressure[0] >> 8);
+
+                    st = 1;
+                }
+
+                if ((tcp_data->start_addr == 51) || (tcp_data->len > 1))
+                {
+                    if (tcp_data->start_addr >= 100)
+                    {
+                        ch = tcp_data->start_addr / 100 - 1;
+                    }
+
+                    for (uint16_t i =                                            \
+                             tcp_data->start_addr - ch * 100 + ch * 6 - 51 + st; \
+                         i < (tcp_data->start_addr - ch * 100 + ch * 6 - 51 +    \
+                              tcp_data->len);                                    \
+                         i++)
+                    {
+                        to_tcp_frame.push_back( \
+                            to_db.rd_db[id_site].valve_group_data_manage[i] >> 8);
+                        to_tcp_frame.push_back( \
+                            to_db.rd_db[id_site].valve_group_data_manage[i] &
+                            0xff);
+                    }
+                }
+            }
+            else
+            {
+                ret = -1;
             }
 
-            /* 解锁 */
+            /* ###### 解锁 ###### */
             m_rd_db.unlock();
+        }
+    }
+
+    /* 请求写单个寄存器 */
+    else if (tcp_data->func_code == 0x06)
+    {
+        if (config_info.valve_group != 1)
+        {
+            if (to_xbee(tcp_data) < 0)
+            {
+                debug("%s\n", "*******发送写单个寄存器指令失败*******");
+                return -1;
+            }
         }
         else
         {
-            return -1;
+            // TODO：通过485的阀组连接方式，写寄存器待完善
         }
+
+        return 0;
+    }
+
+    /* 请求写多个寄存器 */
+    else if (tcp_data->func_code == 0x10)
+    {
+        if (config_info.valve_group != 1)
+        {
+            if (to_xbee(tcp_data) < 0)
+            {
+                debug("%s\n", "*******发送写多个寄存器指令失败*******");
+                return -1;
+            }
+        }
+        else
+        {
+            // TODO：通过485的阀组连接方式，写寄存器待完善
+        }
+        return 0;
     }
     else
     {
-        // ret = -1;
         return -1;
     }
-
-    // if(ret == -1)
-    // {
-    //     return -1;
-    // }
 
     /* 数据异常，发送0 */
     if (ret == -1)
@@ -1243,8 +1039,6 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
         for (int i = 0; i < tcp_data->len * 2; i++)
         {
             to_tcp_frame.push_back(n);
-
-            // to_tcp_frame += n;
         }
     }
 
@@ -1283,9 +1077,8 @@ int MultiTask::state_machine_operation(
     struct state_machine_current_info *curr_info,
     struct data_block                 *data_block)
 {
+    /* 保存CRC校验结果的临时变量 */
     int crcCode = 0;
-
-    char *rrr;
 
     int ret = 0;
 
@@ -1309,58 +1102,16 @@ int MultiTask::state_machine_operation(
 
     XBeeAddress64 addr64;
 
-    /* 开始组装RTU数据 */
-    if (curr_info->store_type == TYPE_INDICATOR_DIAGRAM)
-    {
-        to_xbee_data[0] = curr_info->id_indicator_diagram;
+    /* ------ 开始组装RTU数据 ------ */
 
-        /* 要发送的64位地址 */
-        for (int i = 0; i < c_info.well_max_num; i++)
-        {
-            if (c_info.w_info[i].id == curr_info->id_indicator_diagram)
-            {
-                addr64 = XBeeAddress64(
-                    c_info.w_info[i].addr >> 32,
-                    c_info.w_info[i].addr &
-                    0xffffffff);
-                break;
-            }
-        }
-
-        // addr64 = XBeeAddress64(
-        //     slave_addr[curr_info->id_indicator_diagram] >> 32,
-        //     slave_addr[curr_info->id_indicator_diagram] &
-        //     0xffffffff);
-    }
-
-    // else if (curr_info->store_type == TYPE_VALVE_GROUP_DATA)
-    // {
-    //     to_xbee_data[0] = class_id.valve_group_id[curr_info->id_oil_well
-    // -
-    // 1];
-    // }
-    else
-    {
-        to_xbee_data[0] = curr_info->id_oil_well;
-    }
+    /* 要发送的站号 */
+    to_xbee_data[0] = curr_info->id_well;
 
     /* 要发送的64位地址 */
-    for (int i = 0; i < c_info.well_max_num; i++)
-    {
-        if (c_info.w_info[i].id == curr_info->id_oil_well)
-        {
-            addr64 = XBeeAddress64(
-                c_info.w_info[i].addr >> 32,
-                c_info.w_info[i].addr &
-                0xffffffff);
-            break;
-        }
-    }
 
-    // addr64 = XBeeAddress64(
-    //     slave_addr[curr_info->id_oil_well] >> 32,
-    //     slave_addr[curr_info->id_oil_well] &
-    //     0xffffffff);
+    addr64 = XBeeAddress64(                              \
+        config_info.well_info[curr_info->id].addr >> 32, \
+        config_info.well_info[curr_info->id].addr & 0xffffffff);
 
     to_xbee_data[1] = curr_info->func_code;
     to_xbee_data[2] = curr_info->start_addr >> 8;
@@ -1371,30 +1122,34 @@ int MultiTask::state_machine_operation(
     to_xbee_data[6] = crcCode >> 8;
     to_xbee_data[7] = crcCode & 0xFF;
 
-    uint16_t addr16 = strtol(c_info.xbee_id.c_str(), &rrr, 16) & 0xffff;
-
     debug("%s\n", "发送的数据帧>>");
 
-    /* 出现错误时，重新发送并接收一遍数据，当错误超过两次时，便放弃当前数据，采下一组数据 */
+    /* 出现错误时，重新发送并接收一遍数据，当错误超过两次时，便放弃当前数据，采下一组站号数据 */
     while (err_num < 2)
     {
         /* ############ 上锁 ############ */
         m_tx_rx.lock();
 
         /* 发送数据 */
-        xbeeTx(*xbee_handler, to_xbee_data, 8, addr64, addr16);
+        xbeeTx(*xbee_handler,
+               to_xbee_data,
+               8,
+               addr64,
+               NO_RESPONSE_FRAME_ID);
 
-        debug("%s\n",         "");
+        debug("%s\n", "");
         debug("%s\n", "接收的数据帧>>");
 
         /* 等待接收数据 */
-        ret =
-            xbeeRx(*xbee_handler, xbee_rtu_data, &xbeeRtulen, &slave_addr64);
+        ret = xbeeRx(*xbee_handler, xbee_rtu_data, &xbeeRtulen, &slave_addr64);
 
         /* ############ 解锁 ########### */
         m_tx_rx.unlock();
 
-        if (ret <= 0)
+        debug("tx len >> %02x    rx len >> %02x\n", curr_info->addr_len * 2, (uint16_t)xbee_rtu_data[2]);
+
+        if ((ret <= 0) || \
+            ((curr_info->addr_len * 2) != (uint16_t)xbee_rtu_data[2]))
         {
             err_num++;
             continue;
@@ -1410,55 +1165,40 @@ int MultiTask::state_machine_operation(
         curr_info->isGetTime = false;
         return -1;
     }
-
-    for (int i = 0; i < c_info.well_max_num; i++)
+    
+    /* 保存目标的64位地址 */
+    if ((curr_info->store_type == TYPE_OIL_WELL_DATA) && \
+        (config_info.well_info[curr_info->id].addr == 0xffff))
     {
-        if (c_info.w_info[i].id == curr_info->id_oil_well)
-        {
-            /* 如果发送的是广播，则保存对应井口的64位地址 */
-            if ((curr_info->store_type == TYPE_BASIC_DATA) &&
-                (c_info.w_info[i].addr == 0xffff))
-            {
-                c_info.w_info[i].addr = slave_addr64;
-            }
-            break;
-        }
+        config_info.well_info[curr_info->id].addr = slave_addr64;
     }
 
-    /* ################ 上锁 ################# */
-
-    // lock_guard<mutex> m_db_lock(m_data_block);
-
-    // 将数据存入临时缓存
+    /* 将数据存入临时缓存 */
     for (int i = 0; i < xbeeRtulen - 5; i += 2)
     {
         uint8To16 = (xbee_rtu_data[i + 3] << 8) |
                     (xbee_rtu_data[i + 4] & 0xff);
 
-        if (curr_info->store_type == TYPE_BASIC_DATA)
+        if (curr_info->store_type == TYPE_OIL_WELL_DATA)
         {
-            data_block[curr_info->id].basic_value.push_back(uint8To16);
+            /* 当前基础数据块存放寄存器1~210以及41411~41420的数据 */
+            /* 顺序上是连续的，共包含220个寄存器数据 */
+            /* 偏移量为-1,基础数据与功图基础数据第一部分在第0~209位，功图基础数据第二部分在210~219位 */
+            data_block[curr_info->id].oil_basic_data.push_back(uint8To16);
         }
-        else if (curr_info->store_type == TYPE_INDICATOR_DIAGRAM_BASIC_DATA)
-        {
-            data_block[curr_info->id].ind_diagram_basic_val.push_back(
-                uint8To16);
-        }
-        else if (curr_info->store_type == TYPE_INDICATOR_DIAGRAM)
-        {
-            // TODO：此处的id_indicator_diagtam后面酌情考虑修改
-            data_block[curr_info->id_ind].ind_diagram.push_back(
-                uint8To16);
-        }
+
         else if (curr_info->store_type == TYPE_WATER_WELL_DATA)
         {
-            data_block[curr_info->id].water_well_data.push_back(
-                uint8To16);
+            data_block[curr_info->id].water_well_data.push_back(uint8To16);
         }
         else if (curr_info->store_type == TYPE_MANIFOLD_PRESSURE)
         {
-            data_block[curr_info->id].manifold_pressure.push_back(
-                uint8To16);
+            //TODO：汇管压力后期做精简，在实际测试中检验其是否在对应站号的40051和40060寄存器位上
+            data_block[curr_info->id].manifold_pressure.push_back(uint8To16);
+        }
+        else if (curr_info->store_type == TYPE_VALVE_GROUP_DATA)
+        {
+            data_block[curr_info->id].valve_group_data.push_back(uint8To16);
         }
     }
     return 0;
@@ -1470,10 +1210,11 @@ int MultiTask::state_machine_operation(
  */
 MultiTask::MultiTask()
 {
+    /* ---------读取配置文件中的配置项--------- */
     if (config_manage() < 0)
     {
-        is_error = true;
-        exit(-1);
+        is_error = ERROR_CONFIG;
+        return;
     }
 
     /* ------------ 初始化xbee ------------ */
@@ -1481,32 +1222,122 @@ MultiTask::MultiTask()
 
     if (xbee_handler == nullptr)
     {
-        fprintf(stderr, "xbee_hanler new error\n");
-        is_error = true;
-        exit(-1);
+        // fprintf(stderr, "xbee_hanler new error\n");
+        is_error = ERROR_XBEE;
+        return;
     }
 
-    /* ------------ 初始化uart ------------ */
+    /* ------------ 初始化xbee对应的uart ------------ */
     xbee_ser = new uart();
 
     if (xbee_ser == nullptr)
     {
-        fprintf(stderr, "xbee_ser new error\n");
-        is_error = true;
-        exit(-1);
+        // fprintf(stderr, "xbee_ser new error\n");
+        is_error = ERROR_XBEE;
+        return;
     }
 
     xbee_handler->setSerial(xbee_ser);
 
     /* 打开串口 */
+#ifdef ARMCQ
+
     if (xbee_ser->Open("/dev/ttymxc6", 9600) < 0)
+#else // ifdef ARMCQ
+
+    if (xbee_ser->Open("/dev/ttyUSB0", 9600) < 0)
+#endif // ifdef ARMCQ
     {
-        fprintf(stderr, "serial_open(): %s\n", xbee_ser->errmsg());
-        is_error = true;
-        exit(-1);
+        // fprintf(stderr, "serial_open(): %s\n", xbee_ser->errmsg());
+        is_error = ERROR_XBEE;
+        return;
+    }
+
+        /* -------------初始化DI，DO，AI的配置--------------- */
+
+    // TODO：后期可做在配置项内
+    DI_AI_DO.en_di = false;
+    DI_AI_DO.en_do = false;
+
+    /* 当汇管压力连接到井场RTU上时，使能AI(SPI) */
+    if (config_info.manifold_pressure == 1)
+    {
+        DI_AI_DO.en_ai = true;
+    }
+    else
+    {
+        DI_AI_DO.en_ai = false;
+    }
+
+    /* ----------------- i2c初始化 --------------------- */
+    if (DI_AI_DO.en_di || DI_AI_DO.en_do)
+    {
+        i2c_D = i2c_init("/dev/i2c-2", 0x74, 0xff, 0x03);
+
+        if (i2c_D == nullptr)
+        {
+            is_error = ERROR_I2C;
+            return;
+        }
+    }
+
+    /* ------------------ spi初始化 --------------------- */
+    if (DI_AI_DO.en_ai)
+    {
+        spi_ai.spi = spi_init("/dev/spidev0.0");
+
+        if (spi_ai.spi == nullptr)
+        {
+            is_error = ERROR_SPI;
+            return;
+        }
+
+        spi_ai.val[0] = 0;
+        spi_ai.val[1] = 0;
+        spi_ai.buf_rx[0] = 0;
+        spi_ai.buf_rx[1] = 0;
+
+        spi_ai.buf_tx = spi_buf_tx;
+
+        for (int i = 0; i < 10; i++)
+        {
+            debug("%x\n", spi_ai.buf_tx[i][0]);
+        }
+    }
+
+    /* ------------------ rs485初始化 ------------------ */
+
+    if (config_info.valve_group == 1)
+    {
+    #ifdef ARMCQ
+        rs485_info.fd = usart_init(0, 9600, 8, 1, 1);
+        if(rs485_info.fd < 0)
+        {
+            is_error = ERROR_485;
+            return;
+        }
+    #else // ifdef ARMCQ
+        uart_485 = new uart();
+
+        if (uart_485 == nullptr)
+        {
+            // fprintf(stderr, "uart_485 new error\n");
+            is_error = ERROR_485;
+            return;
+        }
+
+        /* 打开串口 */
+        if (uart_485->Open("/dev/ttyUSB1", 9600) < 0)
+        {
+            // fprintf(stderr, "serial_open(): %s\n", uart_485->errmsg());
+            is_error = ERROR_485;
+            return;
+        }
+    #endif // ifdef ARM_CQ
     }
 
     /* ------------ 初始化sqlite3 ------------ */
+#ifdef SQL
     sql_handler = new sqlControl();
 
     char path[] = "./wellsiteRTUData.db";
@@ -1521,15 +1352,15 @@ MultiTask::MultiTask()
         xbee_handler = nullptr;
         xbee_ser = nullptr;
         debug("%s\n", "sql open error");
-        is_error = true;
-        exit(-1);
+        is_error = ERROR_SQL;
+        return;
     }
 
     /*开启 高速，写同步 */
     if (sql_handler->writeSync() < 0)
     {
-        is_error = true;
-        exit(-1);
+        is_error = ERROR_SQL;
+        return;
     }
 
     /* 创建数据表 */
@@ -1569,6 +1400,7 @@ MultiTask::MultiTask()
     /* 创建阀组间数据表 */
     sql_handler->sqlCreateTable(sql_tab_name.tab_valve_group,
                                 valve_group_field);
+#endif
 }
 
 /**
@@ -1581,18 +1413,18 @@ MultiTask::~MultiTask()
     tcsetattr(rs485_info.fd, TCSANOW, &rs485_info.oldtio);
     close(rs485_info.fd);
 
-    free(tcp_data.value);
+    // free(tcp_data.value);
 
     modbus_free(ctx);
     ctx = nullptr;
 
-    if (DI_AI_DO.AI)
+    if (DI_AI_DO.en_ai)
     {
         spi_close(spi_ai.spi);
         spi_free(spi_ai.spi);
     }
 
-    if (DI_AI_DO.DI || DI_AI_DO.DO)
+    if (DI_AI_DO.en_di || DI_AI_DO.en_do)
     {
         i2c_close(i2c_D->i2c);
         i2c_free(i2c_D->i2c);
@@ -1612,8 +1444,8 @@ MultiTask::~MultiTask()
     delete xbee_handler;
     xbee_handler = nullptr;
 
-    delete c_info.w_info;
-    c_info.w_info = nullptr;
+    delete config_info.well_info;
+    config_info.well_info = nullptr;
 }
 
 /**
@@ -1631,16 +1463,16 @@ void MultiTask::initThread()
     uint8_t recv_ack[9] = { 0 };
 
     /* 初始化的AT命令 */
-    uint8_t uint_at_command[9][15];
+    uint8_t uint_at_command[9][20];
 
     for (int i = 0; i < 9; i++)
     {
-        memset(uint_at_command[i], 0, 15);
+        memset(uint_at_command[i], 0, 20);
     }
-    string atsc = "ATSC" + c_info.xbee_sc + "\r";
-    string atce = "ATCE" + to_string(c_info.xbee_ce) + "\r";
-    string atao = "ATAO" + to_string(c_info.xbee_ao) + "\r";
-    string atid = "ATID" + c_info.xbee_id + "\r";
+    string atsc = "ATSC" + config_info.xbee_sc + "\r";
+    string atce = "ATCE" + to_string(config_info.xbee_ce) + "\r";
+    string atao = "ATAO" + to_string(config_info.xbee_ao) + "\r";
+    string atid = "ATID" + config_info.xbee_id + "\r";
     strcpy((char *)uint_at_command[0],     "+++");
     strcpy((char *)uint_at_command[1],  "ATRE\r");
     strcpy((char *)uint_at_command[2],      atsc.c_str());
@@ -1661,7 +1493,7 @@ void MultiTask::initThread()
 
         if (xbee_ser->Read(recv_ack, 10, 1000) <= 0)
         {
-            debug("%s\n", "uart read error or timeout");
+            debug("%s\n", "AT command read error or timeout");
             continue;
         }
 
@@ -1688,43 +1520,59 @@ void MultiTask::initThread()
             }
             break;
         }
+        else
+        {
+            debug("%s\n", "AT command response is not OK ");
+        }
+        
     }
 
     /* ------------初始化modbus TCP服务器---------------- */
     /* IP地址 */
     memset(server_info.ip_addr, 0, 16);
-    strcpy(server_info.ip_addr, c_info.ip.c_str());
+    strcpy(server_info.ip_addr, config_info.ip.c_str());
 
     /* 端口号 */
-    server_info.port = c_info.port;
+    server_info.port = config_info.port;
 
-    /* -------------初始化DI，DO，AI的配置--------------- */
-    DI_AI_DO.DI = false;
-    DI_AI_DO.DO = false;
+#ifdef ARMCQ
 
-    if (c_info.manifold_pressure == 1)
-    {
-        DI_AI_DO.AI = true;
-    }
-    else
-    {
-        DI_AI_DO.AI = false;
-    }
+    /* 初始化开发板上的1网口 */
+
+    system("ifconfig eth1 up");
+
+    std::string ip;
+    ip += "ifconfig eth1 ";
+    ip += config_info.ip;
+    ip += " netmask ";
+    ip += config_info.mask;
+
+    system(ip.c_str());
+
+    std::string gw;
+    gw += "route add default gw ";
+    gw += config_info.gateway;
+    gw += " dev eth1";
+
+    system(gw.c_str());
+#endif // ifdef ARMCQ
 
     /* --------------初始化上位机发送来的数据------------ */
     tcp_data.rtu_id = 0;
     tcp_data.func_code = 0x03;
     tcp_data.start_addr = 0;
     tcp_data.len = 0;
-    tcp_data.value = nullptr;
+    tcp_data.set_val = 0;
+    tcp_data.byte_count = 0;
+    memset(tcp_data.value, 0, sizeof(tcp_data.value));
 
     /* --------------初始化状态机状态信息---------------- */
     current_info.phase = PHASE_START;
     current_info.isGetTime = true;
     current_info.id = 0;
-    current_info.id_oil_well = 0;
+    current_info.id_well = 0;
     current_info.func_code = 0x03;
-    current_info.store_type = TYPE_BASIC_DATA;
+    current_info.store_type = TYPE_OIL_WELL_DATA;
     current_info.id_ind = 0;
     current_info.is_again = false;
     current_info.is_add_id = false;
@@ -1732,8 +1580,8 @@ void MultiTask::initThread()
     /* -------给data_block在堆区分配内存，并初始化------- */
 
     /* 在堆区分配一段内存用于存储所有配置的井口基础数据 */
-    data_block = new struct data_block[c_info.well_max_num];
-    data_block_2 = new struct data_block[c_info.well_max_num];
+    data_block = new struct data_block[config_info.well_max_num];
+    data_block_2 = new struct data_block[config_info.well_max_num];
 
     if ((data_block == nullptr) || (data_block_2 == nullptr))
     {
@@ -1742,24 +1590,24 @@ void MultiTask::initThread()
     }
 
     /* 初始化 */
-    for (int i = 0; i < c_info.well_max_num; i++)
+    for (int i = 0; i < config_info.well_max_num; i++)
     {
         data_block[i].rtu_id = 0;
         data_block[i].cur_time_diagram = 0;
-        data_block[i].basic_value.resize(200);
-        data_block[i].ind_diagram_basic_val.resize(20);
+        data_block[i].oil_basic_data.resize(200);
         data_block[i].ind_diagram.resize(800);
         data_block[i].water_well_data.resize(100);
         data_block[i].valve_group_data.resize(100);
+        data_block[i].valve_group_data_manage.resize(100);
         data_block[i].manifold_pressure.resize(10);
 
         data_block_2[i].rtu_id = 0;
         data_block_2[i].cur_time_diagram = 0;
-        data_block_2[i].basic_value.resize(200);
-        data_block_2[i].ind_diagram_basic_val.resize(20);
+        data_block_2[i].oil_basic_data.resize(200);
         data_block_2[i].ind_diagram.resize(800);
         data_block_2[i].water_well_data.resize(100);
         data_block_2[i].valve_group_data.resize(100);
+        data_block_2[i].valve_group_data_manage.resize(100);
         data_block_2[i].manifold_pressure.resize(10);
     }
 
@@ -1767,86 +1615,26 @@ void MultiTask::initThread()
     to_db.wr_db = data_block;
     to_db.rd_db = data_block_2;
 
-    /* ----------------- i2c初始化 --------------------- */
-    if (DI_AI_DO.DI || DI_AI_DO.DO)
-    {
-        i2c_D = i2c_init("/dev/i2c-2", 0x74, 0xff, 0x03);
-
-        if (i2c_D == nullptr)
-        {
-            debug("%s\n", "i2c_D init error");
-            return;
-        }
-    }
-
-    /* ------------------ spi初始化 --------------------- */
-    if (DI_AI_DO.AI)
-    {
-        spi_ai.spi = spi_init("/dev/spidev0.0");
-
-        if (spi_ai.spi == nullptr)
-        {
-            printf("spi_init error\n");
-            return;
-        }
-
-        spi_ai.val[0] = 0;
-        spi_ai.val[1] = 0;
-        spi_ai.buf_rx[0] = 0;
-        spi_ai.buf_rx[1] = 0;
-
-        spi_ai.buf_tx = spi_buf_tx;
-
-        for (int i = 0; i < 10; i++)
-        {
-            debug("%x\n", spi_ai.buf_tx[i][0]);
-        }
-    }
-
-    /* ------------------ rs485初始化 ------------------ */
-    if (c_info.valve_group == 1)
-    {
-        rs485_info.fd = open_port("/dev/ttymxc1");
-
-        // rs485_info.fd = open_port("/dev/ttyUSB1");
-
-        if (rs485_info.fd < 0)
-        {
-            perror("open failed");
-            return;
-        }
-
-        rs485_enable(rs485_info.fd, ENABLE);
-
-        int i = set_port(rs485_info.fd, 9600, 8, 'N', 1);
-
-        if (i < 0)
-        {
-            perror("set_port failed");
-            return;
-        }
-    }
-
     /* ---------------- 站号类别初始化 ------------------ */
-    memset(class_id.oil_well_id,    0, sizeof(class_id.oil_well_id));
-    memset(class_id.water_well_id,  0, sizeof(class_id.water_well_id));
-    memset(class_id.valve_group_id, 0, sizeof(class_id.valve_group_id));
-
-    for (int i = 0; i < c_info.well_max_num; i++)
-    {
-        if (c_info.w_info[i].type == 0)
-        {
-            class_id.oil_well_id[i] = c_info.w_info[i].id;
-        }
-        else if (c_info.w_info[i].type == 1)
-        {
-            class_id.water_well_id[i] = c_info.w_info[i].id;
-        }
-        else if (c_info.w_info[i].type == 2)
-        {
-            class_id.valve_group_id[i] = c_info.w_info[i].id;
-        }
-    }
+    // memset(class_id.oil_well_id,    0, sizeof(class_id.oil_well_id));
+    // memset(class_id.water_well_id,  0, sizeof(class_id.water_well_id));
+    // memset(class_id.valve_group_id, 0, sizeof(class_id.valve_group_id));
+// 
+    // for (int i = 0; i < config_info.well_max_num; i++)
+    // {
+    //     if (config_info.well_info[i].type == TYPE_OIL_WELL_DATA)
+    //     {
+    //         class_id.oil_well_id[i] = config_info.well_info[i].id;
+    //     }
+    //     else if (config_info.well_info[i].type == TYPE_WATER_WELL_DATA)
+    //     {
+    //         class_id.water_well_id[i] = config_info.well_info[i].id;
+    //     }
+    //     else if (config_info.well_info[i].type == TYPE_VALVE_GROUP_DATA)
+    //     {
+    //         class_id.valve_group_id[i] = config_info.well_info[i].id;
+    //     }
+    // }
 }
 
 /**
@@ -1858,14 +1646,18 @@ void MultiTask::getWellPortInfoThread()
     debug("%s\n", "This is getWellPortInfoThread");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    /* 用于超时的计时器 */
-    time_t t_start = 0;
-
     /* 用于存入数据库的 string */
     std::string sql = "";
 
     /* 返回值 */
     int ret = 0;
+
+    /* 注水井的个数 */
+    int injection_wells = 0;
+
+    /* 保存每次读取油井基础数据的地址长度 */
+    uint16_t oil_basic_addr_len[] = {0x00, 0x1e, 0x1f, 0x20, 0x21, 0x20, 0x2a, 0x0a};
+
 
     while (1)
     {
@@ -1873,10 +1665,6 @@ void MultiTask::getWellPortInfoThread()
         {
         case PHASE_START:
         {
-            if (current_info.isGetTime)
-            {
-                t_start = time(nullptr);
-            }
 
             if (current_info.is_add_id)
             {
@@ -1884,15 +1672,16 @@ void MultiTask::getWellPortInfoThread()
             }
 
             /* 用于切换1到最后一口井口从机地址 */
-            if (current_info.id < c_info.well_max_num)
+            if (current_info.id < config_info.well_max_num)
             {
-                current_info.id_oil_well = c_info.w_info[current_info.id].id;
+                current_info.id_well = config_info.well_info[current_info.id].id;
                 current_info.is_add_id = true;
             }
             else
             {
+                sleep(1);
                 current_info.id = 0;
-                current_info.id_oil_well = c_info.w_info[current_info.id].id;
+                current_info.id_well = config_info.well_info[current_info.id].id;
 
                 /* ############# 上锁 ############# */
                 m_rd_db.lock();
@@ -1912,33 +1701,87 @@ void MultiTask::getWellPortInfoThread()
                 m_rd_db.unlock();
             }
 
-            if ((current_info.id_oil_well ==
-                 125) |
-                (current_info.id_oil_well ==
-                 126) |
-                (current_info.id_oil_well ==
-                 127) |
-                (current_info.id_oil_well ==
-                 128))
+            /* 保存配置在某一口井上的汇管压力对应的ID再对应的存储块的ID */
+            if (config_info.manifold_pressure_id == current_info.id_well)
+            {
+                to_id_valve = current_info.id;
+            }
+
+            /* 判断当前的站号的类型，并执行对应的程序 */
+            if (config_info.well_info[current_info.id].type == \
+                TYPE_VALVE_GROUP_DATA)
             {
                 current_info.phase = PHASE_VALVE_GROUP;
             }
+            else if (config_info.well_info[current_info.id].type == \
+                     TYPE_WATER_WELL_DATA)
+            {
+                current_info.phase = PHASE_WATER_WELL;
+            }
             else
             {
-                current_info.phase = PHASE_BASIC1;
+                current_info.phase = PHASE_OIL_WELL_BASIC;
             }
             break;
         }
 
-        case PHASE_BASIC1:
+        case PHASE_OIL_WELL_BASIC:
         {
-            to_db.wr_db[current_info.id].basic_value.clear();
-            to_db.wr_db[current_info.id].ind_diagram_basic_val.clear();
+            to_db.wr_db[current_info.id].oil_basic_data.clear();
 
             /* 设置当前阶段的状态信息 */
+            current_info.func_code = 0x03;
+            current_info.start_addr = 0;
+            current_info.store_type = TYPE_OIL_WELL_DATA;
+
+            /* 功图基础数据第一部分存储在油井基础数据的第200位(包含)开始，共10位 */
+            /* 功图基础数据第二部分存储在油井基础数据的第210位(包含)开始，共10位 */
+            for (int i = 0; i < 8; i++)
+            {
+                if(i == 7)
+                {
+                    current_info.start_addr = 0x0582;
+                    current_info.addr_len = oil_basic_addr_len[i];
+                }
+                else
+                {
+                    current_info.start_addr += oil_basic_addr_len[i];
+                    current_info.addr_len = oil_basic_addr_len[i + 1];
+                }
+                
+                ret = state_machine_operation(&current_info, to_db.wr_db);
+
+                if (ret < 0)
+                {
+                    break;
+                }
+            }
+
+            if (ret < 0)
+            {
+                break;
+            }
+
+            if (current_info.id_well == config_info.manifold_pressure_id)
+            {
+                current_info.phase = PHASE_MANIFOLD_PRESSURE;
+            }
+            else
+            {
+                current_info.phase = PHASE_START;
+            }
+            break;
+        }
+
+        case PHASE_WATER_WELL:
+        {
+            to_db.wr_db[current_info.id].water_well_data.clear();
+
+            /* 设置当前阶段的状态信息 */
+            current_info.func_code = 0x03;
             current_info.start_addr = 0x00;
             current_info.addr_len = 0x1e;
-            current_info.store_type = TYPE_BASIC_DATA;
+            current_info.store_type = TYPE_WATER_WELL_DATA;
 
             ret = state_machine_operation(&current_info, to_db.wr_db);
 
@@ -1947,240 +1790,63 @@ void MultiTask::getWellPortInfoThread()
                 break;
             }
 
-            current_info.phase = PHASE_BASIC2;
-            break;
-        }
-
-        case PHASE_BASIC2:
-        {
-            current_info.start_addr = 0x1e;
-            current_info.addr_len = 0x1f;
-
-            ret = state_machine_operation(&current_info, to_db.wr_db);
-
-            if (ret < 0)
+            if (current_info.id_well == config_info.manifold_pressure_id)
             {
-                break;
+                current_info.phase = PHASE_MANIFOLD_PRESSURE;
             }
-
-            current_info.phase = PHASE_BASIC3;
-            break;
-        }
-
-        case PHASE_BASIC3:
-        {
-            current_info.start_addr = 0x3d;
-            current_info.addr_len = 0x20;
-
-            ret = state_machine_operation(&current_info, to_db.wr_db);
-
-            if (ret < 0)
-            {
-                break;
-            }
-
-            current_info.phase = PHASE_BASIC4;
-            break;
-        }
-
-        case PHASE_BASIC4:
-        {
-            current_info.start_addr = 0x5d;
-            current_info.addr_len = 0x21;
-
-            ret = state_machine_operation(&current_info, to_db.wr_db);
-
-            if (ret < 0)
-            {
-                break;
-            }
-
-            current_info.phase = PHASE_BASIC5;
-            break;
-        }
-
-        case PHASE_BASIC5:
-        {
-            current_info.start_addr = 0x7e;
-            current_info.addr_len = 0x20;
-
-            ret = state_machine_operation(&current_info, to_db.wr_db);
-
-            if (ret < 0)
-            {
-                break;
-            }
-
-            current_info.phase = PHASE_INDICATOR_DIAGRAM_BASIC_1;
-            break;
-        }
-
-        case PHASE_INDICATOR_DIAGRAM_BASIC_1:
-        {
-            current_info.start_addr = 0xc8;
-            current_info.addr_len = 0x07;
-            current_info.store_type = TYPE_INDICATOR_DIAGRAM_BASIC_DATA;
-
-            ret = state_machine_operation(&current_info, to_db.wr_db);
-
-            if (ret < 0)
-            {
-                break;
-            }
-
-            current_info.phase = PHASE_INDICATOR_DIAGRAM_BASIC_2;
-            break;
-        }
-
-        case PHASE_INDICATOR_DIAGRAM_BASIC_2:
-        {
-            current_info.time = getCurTime(nullptr);
-            current_info.start_addr = 0x0582;
-            current_info.addr_len = 0x08;
-
-            ret = state_machine_operation(&current_info, to_db.wr_db);
-
-            if (ret < 0)
-            {
-                break;
-            }
-
-            /* 汇管压力(AI) 配置 */
-            if (current_info.id_oil_well == c_info.manifold_pressure_id)
-            {
-                current_info.store_type = TYPE_MANIFOLD_PRESSURE;
-                to_db.wr_db[current_info.id].manifold_pressure.clear();
-
-                current_info.start_addr = 0x00;
-                current_info.addr_len = 0x06;
-                current_info.func_code = 0x04;
-
-                ret = state_machine_operation(&current_info, to_db.wr_db);
-
-                if (ret < 0)
-                {
-                    break;
-                }
-            }
-            current_info.func_code = 0x03;
-
-            /* 唤醒所有线程. */
-            cv_basic_data.notify_all();
-
-            /* 判断是否到达10(暂定为1分钟)分钟 */
-            if (time(nullptr) - t_start < 600)
+            else
             {
                 current_info.phase = PHASE_START;
-
-                current_info.isGetTime = false;
             }
-            else
-            {
-                if (current_info.id == current_info.id_ind)
-                {
-                    current_info.phase = PHASE_INDICATOR_DIAGRAM;
-                }
-                else
-                {
-                    current_info.phase = PHASE_START;
-                }
-            }
-            break;
-        }
-
-        case PHASE_INDICATOR_DIAGRAM:
-        {
-            current_info.store_type = TYPE_INDICATOR_DIAGRAM;
-            to_db.wr_db[current_info.id_ind].ind_diagram.clear();
-
-            current_info.id_indicator_diagram =
-                c_info.w_info[current_info.id_ind].id;
-
-            /* 分包循环采集所有的工图数据 */
-            for (int i = 0; i < 25; i++)
-            {
-                current_info.start_addr = 0xd2 + i * 32;
-                current_info.addr_len = 32;
-
-                ret = state_machine_operation(&current_info, to_db.wr_db);
-
-                if (ret < 0)
-                {
-                    break;
-                }
-            }
-
-            if (ret < 0)
-            {
-                if (current_info.id_ind < c_info.well_max_num - 1)
-                {
-                    current_info.id_ind++;
-                }
-                else
-                {
-                    current_info.id_ind = 0;
-                    current_info.isGetTime = true;
-                }
-                current_info.phase = PHASE_START;
-            }
-            else
-            {
-                current_info.phase = PHASE_POWER_DIAGRAM;
-            }
-
-            break;
-        }
-
-        case PHASE_POWER_DIAGRAM:
-        {
-            /* 分包循环采集所有的功率图数据 */
-            for (int i = 0; i < 25; i++)
-            {
-                current_info.start_addr = 0x3f2 + i * 32;
-                current_info.addr_len = 16;
-
-                ret = state_machine_operation(&current_info, to_db.wr_db);
-
-                if (ret < 0)
-                {
-                    break;
-                }
-            }
-
-            /* 记录当前的功图采集时间，以及功图采集已完成 */
-            to_db.wr_db[current_info.id_ind].cur_time_diagram = time(
-                nullptr);
-
-            if (current_info.id_ind < c_info.well_max_num - 1)
-            {
-                current_info.id_ind++;
-            }
-            else
-            {
-                current_info.id_ind = 0;
-                current_info.isGetTime = true;
-            }
-
-            current_info.phase = PHASE_START;
             break;
         }
 
         case PHASE_VALVE_GROUP:
         {
-            if (c_info.valve_group == 1)
+            if (config_info.valve_group > 0)
             {
                 /* 初始化，清零 */
                 to_db.wr_db[current_info.id].valve_group_data.clear();
 
-                /* 阀组间的基本数据 */
-                for (int i = 0; i < 2; i++)
+                /* 读取配置的注水井的个数和注水井总的汇管压力 */
+                current_info.func_code = 0x04;
+                current_info.start_addr = 0x06;
+                current_info.addr_len = 0x08;
+                current_info.store_type = TYPE_VALVE_GROUP_DATA;
+
+                if (config_info.valve_group == 1)
+                {
+                    ret = rs485(&current_info, to_db.wr_db);
+                }
+                else if (config_info.valve_group == 2)
+                {
+                    ret = state_machine_operation(&current_info, to_db.wr_db);
+                }
+
+                if (ret < 0)
+                {
+                    current_info.phase = PHASE_START;
+                    break;
+                }
+
+                injection_wells =
+                    to_db.wr_db[current_info.id].valve_group_data[2];
+
+                /* 各注水井的基本数据 */
+                for (int i = 0; i < injection_wells; i++)
                 {
                     /* 设置当前阶段的状态信息 */
-                    current_info.start_addr = 0x00 + i * 0x1e;
-                    current_info.addr_len = 0x1e;
-                    current_info.store_type = TYPE_VALVE_GROUP_DATA;
+                    current_info.start_addr = 0x0e + i * 0xa;
+                    current_info.addr_len = 0x8;
 
-                    ret = rs485(&current_info, to_db.wr_db);
+                    if (config_info.valve_group == 1)
+                    {
+                        ret = rs485(&current_info, to_db.wr_db);
+                    }
+                    else if (config_info.valve_group == 2)
+                    {
+                        ret = state_machine_operation(&current_info, to_db.wr_db);
+                    }
 
                     if (ret < 0)
                     {
@@ -2194,19 +1860,98 @@ void MultiTask::getWellPortInfoThread()
                     break;
                 }
 
-                /* 阀组间的各注水井的数据，此处为2口井 */
-                for (int i = 0; i < 2; i++)
+                /* 将原始数据转化为处理过后要发给上位机的数据 */
+                /* 注水井总的汇管压力 */
+                to_db.wr_db[current_info.id].valve_group_data_manage[0] =
+                    to_db.wr_db[current_info.id].valve_group_data[4] +
+                    to_db.wr_db[current_info.id].valve_group_data[5] +
+                    to_db.wr_db[current_info.id].valve_group_data[6] +
+                    to_db.wr_db[current_info.id].valve_group_data[7];
+
+                for (int i = 0; i < 48; i++)
                 {
-                    /* 设置当前阶段的状态信息 */
-                    current_info.start_addr = (0x64 + i * 0x64);
-                    current_info.addr_len = 0x7;
+                    /* 故障信息，红外报警，扩展预留 */
+                    to_db.wr_db[current_info.id].valve_group_data_manage[i +
+                                                                         1] =
+                        0;
+                }
 
-                    ret = rs485(&current_info, to_db.wr_db);
+                for (int i = 0; i < injection_wells; i++)
+                {
+                    /* 注水井注水量设定读  */
+                    to_db.wr_db[current_info.id].valve_group_data_manage[i *
+                                                                         0x06
+                                                                         +
+                                                                         49] =
+                        to_db.wr_db[current_info.id].valve_group_data[i * 8 +
+                                                                      9];
 
-                    if (ret < 0)
-                    {
-                        break;
-                    }
+                    /* 注水井注水量设置值 */
+                    to_db.wr_db[current_info.id].valve_group_data_manage[i *
+                                                                         0x06
+                                                                         +
+                                                                         50] =
+                        to_db.wr_db[current_info.id].valve_group_data[i * 8 +
+                                                                      8];
+
+                    /* 各分水井注水压力 */
+                    to_db.wr_db[current_info.id].valve_group_data_manage[i *
+                                                                         0x06
+                                                                         +
+                                                                         51] =
+                        to_db.wr_db[current_info.id].valve_group_data[i * 8 +
+                                                                      15];
+
+                    /* 各分水井注水瞬时流量 */
+                    to_db.wr_db[current_info.id].valve_group_data_manage[i *
+                                                                         0x06
+                                                                         +
+                                                                         52] =
+                        to_db.wr_db[current_info.id].valve_group_data[i * 8 +
+                                                                      10];
+
+                    /* 各分水井注水累计流量 */
+                    to_db.wr_db[current_info.id].valve_group_data_manage[i *
+                                                                         0x06
+                                                                         +
+                                                                         53] =
+                        to_db.wr_db[current_info.id].valve_group_data[i * 8 +
+                                                                      12];
+                    to_db.wr_db[current_info.id].valve_group_data_manage[i *
+                                                                         0x06
+                                                                         +
+                                                                         54] =
+                        to_db.wr_db[current_info.id].valve_group_data[i * 8 +
+                                                                      11];
+                }
+            }
+
+            if (current_info.id_well == config_info.manifold_pressure_id)
+            {
+                current_info.phase = PHASE_MANIFOLD_PRESSURE;
+            }
+            else
+            {
+                current_info.phase = PHASE_START;
+            }
+            break;
+        }
+
+        case PHASE_MANIFOLD_PRESSURE:
+        {
+            /* 汇管压力(AI) 配置，当前汇管压力只可以配置一个 */
+            if (config_info.manifold_pressure > 0)
+            {
+                current_info.store_type = TYPE_MANIFOLD_PRESSURE;
+                to_db.wr_db[current_info.id].manifold_pressure.clear();
+                current_info.start_addr = config_info.manifold_pressure_addr - 1;
+                current_info.addr_len = 0x01;
+                current_info.func_code = 0x04;
+                ret = state_machine_operation(&current_info, to_db.wr_db);
+
+                if (ret < 0)
+                {
+                    break;
                 }
             }
 
@@ -2358,20 +2103,39 @@ void MultiTask::hostRequestProcThread()
                                           (query[9] & 0xff);
                     tcp_data.len = (query[10] << 8) | (query[11] & 0xff);
 
-                    tcp_data.value = (uint16_t *)calloc(
-                        tcp_data.len, sizeof(uint16_t));
-
-                    if (tcp_data.value == nullptr)
+                    /* 读寄存器 */
+                    if (tcp_data.func_code == 0x03)
                     {
-                        debug("%s\n", "calloc tcp_data.value error");
-                        continue;
+                        tcp_data.len = \
+                            (query[10] << 8) | (query[11] & 0xff);
                     }
 
-                    /*  */
+                    /* 写单个寄存器 */
+                    else if (tcp_data.func_code == 0x06)
+                    {
+                        tcp_data.set_val = \
+                            (query[10] << 8) | (query[11] & 0xff);
+                    }
+
+                    /* 写多个寄存器 */
+                    else if (tcp_data.func_code == 0x10)
+                    {
+                        tcp_data.len = \
+                            (query[10] << 8) | (query[11] & 0xff);
+                        tcp_data.byte_count = query[12];
+
+                        memset(tcp_data.value, 0, sizeof(tcp_data.value));
+
+                        for (int i = 0; i < (tcp_data.len / 2); i++)
+                        {
+                            tcp_data.value[i] = \
+                                (query[13 + i] << 8) | (query[14 + i] & 0xff);
+                        }
+                    }
+
+                    /* 与上位机进行数据交互 */
                     sel_data_to_tcp(&tcp_data);
 
-                    free(tcp_data.value);
-                    tcp_data.value = nullptr;
                 }
                 else if (rc == -1)
                 {
@@ -2389,14 +2153,12 @@ void MultiTask::hostRequestProcThread()
                         fdmax--;
                     }
                 }
-
-                // TODO: 自己实现数据的分析处理/发送
             }
         }
     }
 }
 
-#if 0
+#ifdef SQL
 
 /**
  * @brief 数据库存储线程
@@ -2419,7 +2181,7 @@ void MultiTask::sqlMemoryThread()
     std::string del_statement = "";
 
     /* 用于保存当前井口编号 */
-    int id_oil_well = 0;
+    int id_well = 0;
 
     int id = 0;
 
@@ -2461,7 +2223,7 @@ void MultiTask::sqlMemoryThread()
         }
 
         /* 保存当前的站号 */
-        id_oil_well = current_info.id_oil_well;
+        id_well = current_info.id_well;
 
         id = current_info.id;
 
@@ -2485,14 +2247,14 @@ void MultiTask::sqlMemoryThread()
         /* ############VVV 上锁 VVV############ */
         m_data_block.lock();
 
-        cycles[0] = data_block[id].basic_value.size() - 1;
+        cycles[0] = data_block[id].oil_basic_data.size() - 1;
         cycles[1] = data_block[id].ind_diagram_basic_val.size() - 1;
 
         cur_store_type = current_info.store_type;
 
         // id_ind_diagrom = current_info.id_indicator_diagram;
         // TODO：测试
-        id_ind_diagrom = id_oil_well;
+        id_ind_diagrom = id_well;
 
         /* ############AAA 解锁 AAA############# */
         m_data_block.unlock();
@@ -2534,7 +2296,7 @@ void MultiTask::sqlMemoryThread()
                 }
                 else
                 {
-                    sql += std::to_string(id_oil_well);
+                    sql += std::to_string(id_well);
                 }
                 sql += ",";
 
@@ -2565,7 +2327,7 @@ void MultiTask::sqlMemoryThread()
 
                 if (j == 0)
                 {
-                    sql += std::to_string(data_block[id].basic_value[i]);
+                    sql += std::to_string(data_block[id].oil_basic_data[i]);
                     tab_name = sql_tab_name.tab_basic;
                 }
                 else if (j == 1)
@@ -2657,7 +2419,7 @@ void MultiTask::sqlMemoryThread()
     }
 }
 
-#endif // if 0
+#endif
 
 /**
  * @brief 升级线程

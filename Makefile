@@ -14,7 +14,7 @@ all:
 	$(PATH_LIBRARY)multitask.cpp $(PATH_LIBRARY)uart.cpp $(PATH_LIBRARY)xbee_op.cpp \
 	$(PATH_LIBRARY)xbee_request.cpp $(PATH_LIBRARY)xbee.cpp $(PATH_LIBRARY)xbee_response.cpp \
 	$(PATH_LIBRARY)helper.cpp $(PATH_LIBRARY)sqlite_helper.cpp $(PATH_LIBRARY)i2c.c \
-	$(PATH_LIBRARY)spi.c \
+	$(PATH_LIBRARY)spi.c $(PATH_LIBRARY)rs485.c \
 	$(PATH_SRC_CONFIG)tinyxml2.cpp \
 	$(PATH_TEST)main_thread.cpp \
 	-lpthread -lmodbus -lsqlite3 \
@@ -28,7 +28,7 @@ arm:
 	$(PATH_LIBRARY)multitask.cpp $(PATH_LIBRARY)uart.cpp  $(PATH_LIBRARY)xbee_op.cpp \
 	$(PATH_LIBRARY)xbee_request.cpp $(PATH_LIBRARY)xbee.cpp $(PATH_LIBRARY)xbee_response.cpp \
 	$(PATH_LIBRARY)helper.cpp $(PATH_LIBRARY)sqlite_helper.cpp $(PATH_LIBRARY)i2c.c \
-	$(PATH_LIBRARY)spi.c \
+	$(PATH_LIBRARY)spi.c $(PATH_LIBRARY)rs485.c \
 	$(PATH_SRC_CONFIG)tinyxml2.cpp \
 	$(PATH_TEST)main_thread.cpp \
 	-o $(PATH_BUILD)cq_arm_main
@@ -55,12 +55,20 @@ uart:
 	-o $(PATH_BUILD)uart_wr
 
 485:
-	arm-linux-gnueabihf-g++ -g -DDEBUG -std=c++11 -Wall \
-	-I$(PATH_INCLUDE) -I$(PATH_INC_LINUX) \
-	$(PATH_TEST)rs485_test.cpp \
+	gcc -g -DDEBUG -Wall \
+	-I$(PATH_INCLUDE) \
+	$(PATH_LIBRARY)rs485.c \
+	$(PATH_TEST)rs485-test.c \
 	-o $(PATH_BUILD)rs485
 
-xbee_at:
+485-arm:
+	arm-linux-gnueabihf-gcc -g -DDEBUG -Wall \
+	-I$(PATH_INCLUDE) \
+	$(PATH_LIBRARY)rs485.c \
+	$(PATH_TEST)rs485-test.c \
+	-o $(PATH_BUILD)rs485-arm
+
+xbee-at:
 	arm-linux-gnueabihf-g++ -g -DDEBUG -std=c++1y -Wall \
 	-I$(PATH_INCLUDE) \
 	-lpthread -lmodbus -lsqlite3 \

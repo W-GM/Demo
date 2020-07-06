@@ -16,44 +16,15 @@
 
 #include "config/tinyxml2.h"
 
-#include <stdio.h>
-#include <termios.h>
-#include <linux/ioctl.h>
-#include <linux/serial.h>
-#include <asm-generic/ioctls.h> /* TIOCGRS485 + TIOCSRS485 ioctl definitions */
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <string.h>
-#include <stdlib.h>
-#include <getopt.h>
-
-#include <sys/ioctl.h>
-
-/**
- * @brief: set the properties of serial port
- * @Param: fd: file descriptor
- * @Param: nSpeed: Baud Rate
- * @Param: nBits: character size
- * @Param: nEvent: parity of serial port
- * @Param: nStop: stop bits
- */
-
-typedef enum { DISABLE = 0, ENABLE } RS485_ENABLE_t;
-
-
+#include "modbus-private.h"
+#include "rs485.h"
 using namespace tinyxml2;
-
-
-#define I2C
 
 /* 允许监听的最大个数 */
 #define NB_CONNECTON 5
 
-/* 用于接收 zigbee 数据的长度 */
-#define XBEE_RTU_MAX_LENGTH 80
+// #define ARMCQ
+
 
 /**
  * @brief 状态机的状态表
@@ -62,17 +33,10 @@ using namespace tinyxml2;
 enum state_machine
 {
     PHASE_START,                     /* 起始阶段 */
-    PHASE_BASIC1,                    /* 基础数据第一部分 */
-    PHASE_BASIC2,                    /* 基础数据第二部分 */
-    PHASE_BASIC3,                    /* 基础数据第三部分 */
-    PHASE_BASIC4,                    /* 基础数据第四部分 */
-    PHASE_BASIC5,                    /* 基础数据第五部分 */
-    PHASE_INDICATOR_DIAGRAM_BASIC_1, /* 功图基础数据第一部分 */
-    PHASE_INDICATOR_DIAGRAM_BASIC_2, /* 功图基础数据第二部分 */
-    PHASE_INDICATOR_DIAGRAM,         /* 功图 */
-    PHASE_POWER_DIAGRAM,             /* 功率图 */
+    PHASE_OIL_WELL_BASIC,            /* 油井基础数据(包含功图基础数据) */
     PHASE_WATER_WELL,                /* 水源井数据 */
-    PHASE_VALVE_GROUP                /* 阀组间数据 */
+    PHASE_VALVE_GROUP,               /* 阀组间数据 */
+    PHASE_MANIFOLD_PRESSURE          /* 汇管压力数据 */
 };
 
 /**
@@ -81,12 +45,22 @@ enum state_machine
  */
 enum stroe_type
 {
-    TYPE_BASIC_DATA,                   /* 基础数据类型 */
-    TYPE_INDICATOR_DIAGRAM_BASIC_DATA, /* 功图基础数据类型 */
+    TYPE_OIL_WELL_DATA,                /* 油井数据类型 */
     TYPE_INDICATOR_DIAGRAM,            /* 功图数据类型 */
     TYPE_WATER_WELL_DATA,              /* 水源井数据类型 */
     TYPE_VALVE_GROUP_DATA,             /* 阀组间数据类型 */
     TYPE_MANIFOLD_PRESSURE             /* 汇管压力(AI)数据类型 */
+};
+
+enum error_mun
+{
+    ERROR_NO,     /* 未出现错误 */
+    ERROR_CONFIG, /* 读取配置项失败 */
+    ERROR_XBEE,   /* 初始化xbee失败 */
+    ERROR_I2C,    /* 初始化i2c失败 */
+    ERROR_SPI,    /* 初始化spi失败 */
+    ERROR_485,    /* 初始化485失败 */
+    ERROR_SQL,    /* 初始化数据库失败 */
 };
 
 /**
@@ -96,8 +70,8 @@ enum stroe_type
 struct state_machine_current_info
 {
     bool     is_add_id;            /* 是否对id进行++操作 */
-    int      id;
-    int      id_oil_well;          /* 当前油井编号(ID) */
+    int      id;                   /* 当前站号对应的存储区域 */
+    int      id_well;              /* 当前站号(ID) */
     int      id_ind;
     int      id_indicator_diagram; /* 当前功图对应的油井编号(ID) */
     uint8_t  func_code;            /* 当前功能码 */
@@ -105,7 +79,7 @@ struct state_machine_current_info
     uint16_t addr_len;             /* 当前地址长度 */
     bool     isGetTime;            /* 当前GetTime的状态 */
     uint16_t phase;                /* 当前状态机所处的阶段 */
-    string   time;                 /* 当前时间 */
+    string   time;                 /* 当前使能￼时间 */
     int      store_type;           /* 当前所存储的数据类型 */
     bool     is_again;             /* 判断当前是否开始请求下一口井的数据 */
 };
@@ -116,18 +90,15 @@ struct state_machine_current_info
  */
 struct data_block
 {
-    uint8_t              rtu_id;                /* 站号 */
-    std::vector<uint16_t>basic_value;           /* 对应寄存器值的基础数据 */
-    std::vector<uint16_t>ind_diagram_basic_val; /* 功图基础数据 */
-    std::vector<uint16_t>ind_diagram;           /* 功图数据 */
-    std::vector<uint16_t>water_well_data;       /* 水源井数据 */
-    std::vector<uint16_t>valve_group_data;      /* 阀组间数据 */
-    std::vector<uint16_t>manifold_pressure;     /* 汇管压力数据 */
+    uint8_t              rtu_id;                  /* 站号 */
+    std::vector<uint16_t>oil_basic_data;          /* 油井基础数据(包含功图基础数据) */
+    std::vector<uint16_t>ind_diagram;             /* 功图数据 */
+    std::vector<uint16_t>water_well_data;         /* 水源井数据 */
+    std::vector<uint16_t>valve_group_data;        /* 阀组间原始数据 */
+    std::vector<uint16_t>valve_group_data_manage; /* 阀组间处理后要返回给上位机的数据 */
+    std::vector<uint16_t>manifold_pressure;       /* 汇管压力数据 */
 
-
-
-
-    time_t               cur_time_diagram;      /* 存储功图的当前时间 */
+    time_t cur_time_diagram;                      /* 存储功图的当前时间 */
 };
 
 /**
@@ -140,15 +111,10 @@ struct tcp_data
     uint8_t   rtu_id;          /* 站号 */
     uint8_t   func_code;       /* 功能码 */
     uint16_t  start_addr;      /* 寄存器起始地址 */
-    uint16_t  len;             /* 地址/数组长度 */
-    uint16_t *value;           /* 指向对应寄存器值的数组 */
-};
-
-struct rtu_info
-{
-    int      id;      /* 站号 */
-    uint64_t id_addr; /* xbee64位地址 */
-    int      type;    /* 油井，水井，阀组间 */
+    uint16_t  len;             /* 寄存器的长度/个数 */
+    uint16_t  set_val;         /* 向寄存器中写入的值（功能码0x06） */
+    uint16_t  byte_count;      /* 字节个数（功能码0x10） */
+    uint16_t  value[10];       /* 向多个寄存器中写入的值（功能码0x10） */
 };
 
 /**
@@ -174,12 +140,14 @@ struct config_info
     string mac;                     /* mac地址 */
     string mask;                    /* 子网掩码 */
 
-    int valve_group;                /* 阀组连接方式 0:<通过ZigBee连接>  1:<通过RS485连接> */
+    int valve_group;                /* 阀组连接方式 0:<未连接>  1:<通过井场RS485连接>
+                                       2:<通过ZigBee连接> */
     int valve_SEL;                  /* 第一位到第四位分别为125~128  0:<配置>  1:<未配置> */
 
 
     int manifold_pressure;          /* 汇管压力连接方式，同上 */
     int manifold_pressure_id;       /* 汇管压力连接到第几个站号上 */
+    int manifold_pressure_addr;     /* 汇管压力对应AI1到AI6的地址 */
 
     string xbee_id;                 /* 16位的PAN ID */
     string xbee_sc;                 /* 7fff */
@@ -187,7 +155,7 @@ struct config_info
     int    xbee_ce;                 /* 0:<路由器>  1:<协调器> */
 
     int               well_max_num; /* 配置的井口最大个数 */
-    struct well_info *w_info;       /* 井口的配置信息 */
+    struct well_info *well_info;    /* 井口的配置信息 */
 };
 
 // TODO : 这里以后可以把指针更换成智能指针
@@ -198,7 +166,7 @@ private:
     modbus_t *ctx = nullptr;
 
     /* 用于保存在构造函数中，是否出现错误 */
-    bool is_error = false;
+    int is_error = ERROR_NO;
 
     /* 用于监听的 socket */
     int server_socket;
@@ -210,12 +178,12 @@ private:
     struct DI_AI_DO
     {
         /* true表示在井场使用了，false表示未使用 */
-        bool    DI;
-        bool    DO;
-        bool    AI;
-        uint8_t di_val[2];
-        uint8_t do_val;
-        uint8_t ai_val;
+        bool    en_di;
+        bool    en_do;
+        bool    en_ai;
+        uint8_t val_di[2];
+        uint8_t val_do;
+        uint8_t val_ai;
     } DI_AI_DO;
 
     struct rs485_info
@@ -236,6 +204,9 @@ private:
 
     /* 用于存储上位机发送来数据 */
     struct tcp_data tcp_data;
+
+    /* 保存配置在某一口井上的汇管压力对应的ID再对应的存储块的ID */
+    int to_id_valve = 0;
 
     /* 发送给 zigbee 的数据帧(modbus RTU) */
     struct to_zigbee
@@ -259,12 +230,12 @@ private:
     } server_info;
 
     /* 用于保存站号的类别 */
-    struct classify_id
-    {
-        int oil_well_id[16];
-        int water_well_id[16];
-        int valve_group_id[16];
-    } class_id;
+    // struct classify_id
+    // {
+    //     int oil_well_id[16];
+    //     int water_well_id[16];
+    //     int valve_group_id[16];
+    // } class_id;
 
     /* 用于指向存储站号的两组数据区 */
     struct data_block *data_block = nullptr;
@@ -275,16 +246,13 @@ private:
     {
         struct data_block *wr_db;
         struct data_block *rd_db;
-    }to_db;
+    } to_db;
 
     /* xbee handler */
     XBee *xbee_handler = nullptr;
 
     /* xbee serial handler */
     uart *xbee_ser = nullptr;
-
-    /* 用于指示上位机数据是否到来 */
-    bool is_data_come = false;
 
     /* sqlite helper handler */
     sqlControl *sql_handler = nullptr;
@@ -295,6 +263,9 @@ private:
     /* spi handler */
     struct spi_handler spi_ai;
 
+    /* 用于在电脑上运行rs485 */
+    uart *uart_485 = nullptr;
+
 
     /* ----------------------配置项---------------------- */
     /* configure */
@@ -303,22 +274,9 @@ private:
     XMLElement *config_option = nullptr; /* 指向标签中的配置 */
 
     /* 用于保存从配置项文件中得到的配置信息 */
-    struct config_info c_info;
-
-    /* 用于存储配置的井口信息*/
-    struct well_info well_info;
-
+    struct config_info config_info;
 
     /*---------------------互斥量和条件变量---------------*/
-
-    /* 用于控制 zigbee 和 上位机共享数组的互斥量 */
-    std::mutex m_mutex_xbee_data;
-
-    /* 用于通知上位机数据已经准备好的条件变量 */
-    std::condition_variable m_cond_datacom;
-
-    /* 用于管理 xbee_handler 的互斥量 */
-    std::mutex m_mutex_xbee;
 
     /* 用于管理xbee Tx 与 Rx 的互斥量 */
     std::mutex m_tx_rx;
@@ -362,7 +320,7 @@ public:
 
     void sqlMemoryThread();
 
-    bool get_error()
+    int  get_error()
     {
         return is_error;
     }

@@ -1,3 +1,13 @@
+/**
+ * @file main_thread.cpp
+ * @author wgm (wangguomin@scaszh.com)
+ * @brief This is the CQOF wellsite RTU main program
+ * @version 0.5
+ * @date 2020-06-03
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -18,9 +28,17 @@ int main()
     
     MultiTask app;
 
-    if(app.get_error())
+    const char *error_type[] = {"config", "xbee", "i2c", "spi", "485", "sql"};
+    int is_error = app.get_error();
+    if(is_error > 0 && is_error < 7)
+    {   
+        printf("init %s error\n", error_type[is_error -1]);
+        exit(-1);
+    }
+    else if(is_error != 0)
     {
-        exit(1);
+        printf("init other error\n");
+        exit(-1);
     }
 
 
@@ -39,15 +57,17 @@ int main()
     std::thread getwellportinfothread(&MultiTask::getWellPortInfoThread, &app);
 
     std::thread hostrequestprocthread(&MultiTask::hostRequestProcThread, &app);
-
-    //std::thread sqlmemorythread(&MultiTask::sqlMemoryThread, &app);
-
+#ifdef SQL
+    std::thread sqlmemorythread(&MultiTask::sqlMemoryThread, &app);
+#endif
     // std::thread updatethread(&MultiTask::updateThread, &app);
 
 
     getwellportinfothread.join();
     hostrequestprocthread.join();
-    //sqlmemorythread.join();
+#ifdef SQL
+    sqlmemorythread.join();
+#endif
     //updatethread.join();
 
     return 0;

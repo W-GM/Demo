@@ -30,7 +30,7 @@ void xbeeTx(XBee        & xbee,
             uint8_t      *payload,
             uint8_t       payloadlen,
             XBeeAddress64 addr64,
-            uint16_t      addr16);
+            uint8_t       frameID);
 
 int xbeeRx(XBee   & xbee,
            uint8_t *data,

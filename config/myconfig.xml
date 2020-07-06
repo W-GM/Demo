@@ -4,18 +4,18 @@
     <RTU_NAME>cq_1</RTU_NAME> <!--根据此井场名称自动生成id号-->
 
     <!--网络配置-->
-    <PORT>502</PORT>
+    <PORT>1502</PORT>
     <IP>11.11.4.6</IP>
     <GATEWAY>11.11.5.254</GATEWAY>
     <MAC>12:35:00:78:00:20</MAC>
     <MASK>255.255.254.0</MASK>
 
     <!--阀组配置-->
-    <VALVE_GROUP>0</VALVE_GROUP> <!--0:<未连接>  1:<通过井场RS485连接>  2:<通过ZigBee连接>-->
+    <VALVE_GROUP>0</VALVE_GROUP> <!--0:<未连接>  1:<通过井场RTU485接口连接>  2:<通过ZigBee连接>-->
     <VALVE_SEL>3</VALVE_SEL> <!--0:<125>  1:<126>  2:<127>  3:<128>-->
 
     <!--汇管压力配置-->
-    <MANIFOLD_PRESSURE>0</MANIFOLD_PRESSURE> <!--0:<未连接>  1:<通过井场AI连接>  2:<通过ZigBee连接>-->
+    <MANIFOLD_PRESSURE>0</MANIFOLD_PRESSURE> <!--0:<未连接>  1:<通过井场AI接口连接>  2:<通过ZigBee连接>-->
     <MANIFOLD_PRESSURE_ID>7</MANIFOLD_PRESSURE_ID> <!--汇管压力连接到第几个站号上-->
     <MANIFOLD_PRESSURE_ADDR>5</MANIFOLD_PRESSURE_ADDR> <!--汇管压力对应AI1到AI6的地址-->
 
@@ -26,7 +26,7 @@
     <XBEE_CE>1</XBEE_CE>
     
     <!--井口配置-->
-    <!--从高位到低位 状态位(1)  类型(3):<油井为0，水井为1>  地址位(4):<偏移量1-->
+    <!--从高位到低位 状态位(1)  类型(3):<油井为0，水井为1, 阀组为2>  地址位(4):<偏移量1>-->
     <WELLHEAD_MAX_NUM>1</WELLHEAD_MAX_NUM>
     <WELLHEAD_1>0</WELLHEAD_1> 
     <WELLHEAD_2>81</WELLHEAD_2>
