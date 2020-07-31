@@ -1,2 +1,2 @@
-/home/wgm/wgm/PROJECT/CQ_PROJECT/util/watchdogctl.ko
-/home/wgm/wgm/PROJECT/CQ_PROJECT/util/watchdogctl.o
+/home/wgm/wgm/PROJECT/CQOF-RTU/watchdogctl/watchdogctl.ko
+/home/wgm/wgm/PROJECT/CQOF-RTU/watchdogctl/watchdogctl.o

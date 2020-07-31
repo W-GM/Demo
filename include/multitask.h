@@ -1,3 +1,13 @@
+/**
+ * @file multitask.h
+ * @author wgm (wangguomin@scaszh.com)
+ * @brief This is the CQOF wellsite RTU multi-threaded head file
+ * @version 1.1
+ * @date 2020-07-03
+ *
+ * @copyright Copyright (c) 2020
+ *
+ */
 #ifndef __MULTITASK_H__
 #define __MULTITASK_H__
 
@@ -13,6 +23,7 @@
 #include <shared_mutex>
 #include "i2c.h"
 #include "spi.h"
+#include <algorithm> /* 用于实现string中的某个字符替换成新的字符 */
 
 #include "config/tinyxml2.h"
 
@@ -25,6 +36,28 @@ using namespace tinyxml2;
 
 // #define ARMCQ
 
+/**
+ * @brief 厂家名称
+ * 
+ */
+enum manufactures
+{
+    ANKONG = 100,  /* 安控 */
+    KAISHAN = 200, /* 凯山 */
+    ANTE = 300,    /* 安特 */
+    JINGSHI = 400  /* 金时 */
+};
+
+/**
+ * @brief 通讯连接方式
+ *
+ */
+enum communication_connect_type
+{
+    CON_NO,       /* 无连接 */
+    CON_WIRED,    /* 有线连接 */
+    CON_WIRELESS, /* 无线连接 */
+};
 
 /**
  * @brief 状态机的状态表
@@ -32,11 +65,12 @@ using namespace tinyxml2;
  */
 enum state_machine
 {
-    PHASE_START,                     /* 起始阶段 */
-    PHASE_OIL_WELL_BASIC,            /* 油井基础数据(包含功图基础数据) */
-    PHASE_WATER_WELL,                /* 水源井数据 */
-    PHASE_VALVE_GROUP,               /* 阀组间数据 */
-    PHASE_MANIFOLD_PRESSURE          /* 汇管压力数据 */
+    PHASE_START,             /* 起始阶段 */
+    PHASE_OIL_WELL_BASIC,    /* 油井基础数据(包含功图基础数据) */
+    PHASE_WATER_WELL,        /* 水源井数据 */
+    PHASE_VALVE_GROUP,       /* 阀组间数据 */
+    PHASE_MANIFOLD_PRESSURE, /* 汇管压力数据 */
+    PHASE_WELLSITE_RTU       /* 井场RTU数据 */
 };
 
 /**
@@ -45,13 +79,19 @@ enum state_machine
  */
 enum stroe_type
 {
-    TYPE_OIL_WELL_DATA,                /* 油井数据类型 */
-    TYPE_INDICATOR_DIAGRAM,            /* 功图数据类型 */
-    TYPE_WATER_WELL_DATA,              /* 水源井数据类型 */
-    TYPE_VALVE_GROUP_DATA,             /* 阀组间数据类型 */
-    TYPE_MANIFOLD_PRESSURE             /* 汇管压力(AI)数据类型 */
+    TYPE_NO,                    /* 未配置类型 */
+    TYPE_OIL_WELL_DATA,         /* 油井数据类型 */
+    TYPE_WATER_WELL_DATA,       /* 水源井数据类型 */
+    TYPE_VALVE_GROUP_DATA,      /* 阀组间数据类型 */
+    TYPE_MANIFOLD_PRESSURE_1,   /* 汇管压力1(AI)数据类型 */
+    TYPE_MANIFOLD_PRESSURE_2    /* 汇管压力2(AI)数据类型 */
+    //TYPE_MANIFOLD_PRESSURE_ONLY /* 汇管压力(AI)数据类型.. */
 };
 
+/**
+ * @brief 初始化错误类型
+ *
+ */
 enum error_mun
 {
     ERROR_NO,     /* 未出现错误 */
@@ -70,8 +110,8 @@ enum error_mun
 struct state_machine_current_info
 {
     bool     is_add_id;            /* 是否对id进行++操作 */
-    int      id;                   /* 当前站号对应的存储区域 */
-    int      id_well;              /* 当前站号(ID) */
+    int      id_addr;              /* 当前站号所在的地址，包含存储块和配置项 */
+    int      id;                   /* 当前站号(ID) */
     int      id_ind;
     int      id_indicator_diagram; /* 当前功图对应的油井编号(ID) */
     uint8_t  func_code;            /* 当前功能码 */
@@ -79,7 +119,7 @@ struct state_machine_current_info
     uint16_t addr_len;             /* 当前地址长度 */
     bool     isGetTime;            /* 当前GetTime的状态 */
     uint16_t phase;                /* 当前状态机所处的阶段 */
-    string   time;                 /* 当前使能￼时间 */
+    //string   time;                 /* 当前使能￼时间 */
     int      store_type;           /* 当前所存储的数据类型 */
     bool     is_again;             /* 判断当前是否开始请求下一口井的数据 */
 };
@@ -90,15 +130,15 @@ struct state_machine_current_info
  */
 struct data_block
 {
-    uint8_t              rtu_id;                  /* 站号 */
-    std::vector<uint16_t>oil_basic_data;          /* 油井基础数据(包含功图基础数据) */
-    std::vector<uint16_t>ind_diagram;             /* 功图数据 */
-    std::vector<uint16_t>water_well_data;         /* 水源井数据 */
-    std::vector<uint16_t>valve_group_data;        /* 阀组间原始数据 */
-    std::vector<uint16_t>valve_group_data_manage; /* 阀组间处理后要返回给上位机的数据 */
-    std::vector<uint16_t>manifold_pressure;       /* 汇管压力数据 */
+    uint8_t              rtu_id;             /* 站号 */
+    std::vector<uint16_t>oil_basic_data;     /* 油井基础数据(包含功图基础数据) */
+    std::vector<uint16_t>ind_diagram;        /* 功图数据 */
+    std::vector<uint16_t>water_well_data;    /* 水源井数据 */
+    std::vector<uint16_t>valve_group_data;   /* 阀组间原始数据 */
+    std::vector<uint16_t>wellsite_rtu;       /* 井场RTU的数据 */
+    uint8_t              injection_well_num; /* 配置的注水井个数 */
 
-    time_t cur_time_diagram;                      /* 存储功图的当前时间 */
+    time_t cur_time_diagram;                 /* 存储功图的当前时间 */
 };
 
 /**
@@ -107,25 +147,14 @@ struct data_block
  */
 struct tcp_data
 {
-    uint8_t   frame_header[6]; /* 帧头 */
-    uint8_t   rtu_id;          /* 站号 */
-    uint8_t   func_code;       /* 功能码 */
-    uint16_t  start_addr;      /* 寄存器起始地址 */
-    uint16_t  len;             /* 寄存器的长度/个数 */
-    uint16_t  set_val;         /* 向寄存器中写入的值（功能码0x06） */
-    uint16_t  byte_count;      /* 字节个数（功能码0x10） */
-    uint16_t  value[10];       /* 向多个寄存器中写入的值（功能码0x10） */
-};
-
-/**
- * @brief 井口信息
- *
- */
-struct well_info
-{
-    int      id;   /* 站号 */
-    int      type; /* 类型  0:<油井>  1:<水井>  2:<阀组> */
-    uint64_t addr; /* 64位设备地址 */
+    uint8_t  frame_header[6]; /* 帧头 */
+    uint8_t  rtu_id;          /* 站号 */
+    uint8_t  func_code;       /* 功能码 */
+    uint16_t start_addr;      /* 寄存器起始地址 */
+    uint16_t len;             /* 寄存器的长度/个数 */
+    uint16_t set_val;         /* 向寄存器中写入的值（功能码0x06） */
+    uint16_t byte_count;      /* 字节个数（功能码0x10） */
+    uint16_t value[10];       /* 向多个寄存器中写入的值（功能码0x10） */
 };
 
 /**
@@ -134,29 +163,42 @@ struct well_info
  */
 struct config_info
 {
-    int    port;                    /* 端口号 */
-    string ip;                      /* ip地址 */
-    string gateway;                 /* 网关 */
-    string mac;                     /* mac地址 */
-    string mask;                    /* 子网掩码 */
+    string version;  /* 固件版本 */
+    string rtu_name; /* rtu名称 */
 
-    int valve_group;                /* 阀组连接方式 0:<未连接>  1:<通过井场RS485连接>
-                                       2:<通过ZigBee连接> */
-    int valve_SEL;                  /* 第一位到第四位分别为125~128  0:<配置>  1:<未配置> */
+    int    port;     /* 端口号 */
+    string ip;       /* ip地址 */
+    string gateway;  /* 网关 */
+    string mac;      /* mac地址 */
+    string mask;     /* 子网掩码 */
 
+    /* 汇管的配置信息 */
+    struct manifold_pressure
+    {
+        uint8_t type;   /* 0:未配置 1:AI配置 2:ZigBee配置 */
+        uint8_t add;    /* 1～6对应连接到AI的第几个引脚上 */
+        uint8_t id;     /* 配置在第几个站号上 */
+        uint16_t range; /* 量程 */
+    } manifold_1, manifold_2;
 
-    int manifold_pressure;          /* 汇管压力连接方式，同上 */
-    int manifold_pressure_id;       /* 汇管压力连接到第几个站号上 */
-    int manifold_pressure_addr;     /* 汇管压力对应AI1到AI6的地址 */
+    string xbee_id;   /* 16位的PAN ID */
+    string xbee_sc;   /* 7fff */
+    int    xbee_ao;   /* 0:<不接收ack>  1:<接收ack> */
+    int    xbee_ce;   /* 0:<路由器>  1:<协调器> */
 
-    string xbee_id;                 /* 16位的PAN ID */
-    string xbee_sc;                 /* 7fff */
-    int    xbee_ao;                 /* 0:<不接收ack>  1:<接收ack> */
-    int    xbee_ce;                 /* 0:<路由器>  1:<协调器> */
+    /* 井口的配置信息 */
+    struct well_info
+    {
+        uint8_t  id;   /* 已配置的站号 */
+        uint8_t  type; /* 类型 0:<未配置> 1:<油井> 2:<水井> 0x31:<阀组(485)>
+                          0x32<阀组(zigbee)> */
+        uint64_t addr; /* 64位设备地址 */
+    } well_info[20];
 
-    int               well_max_num; /* 配置的井口最大个数 */
-    struct well_info *well_info;    /* 井口的配置信息 */
+    /* 配置的井口和阀组的个数 */
+    int well_max_num;
 };
+
 
 // TODO : 这里以后可以把指针更换成智能指针
 class MultiTask {
@@ -202,11 +244,27 @@ private:
         char tab_valve_group[11];             /* 阀组间数据表名 */
     } sql_tab_name;
 
+    /**
+     * @brief 井场RTU信息
+     *
+     */
+    struct wellsite_info
+    {
+        std::vector<uint16_t>wellsite_info;           /* 井场信息(暂未定) */
+        std::vector<uint16_t>manufacturer;            /* 厂家信息(暂未定) */
+        std::vector<uint16_t>rtu_version;             /* 设备型号(暂未定) */
+        uint16_t             manifold_pressure[2];    /* 汇管压力数据 */
+        uint16_t             fault_info[5];           /* 故障信息 */
+        uint16_t             infrared_alarm[2];       /* 红外报警 */
+    } wellsite_info;
+
+
     /* 用于存储上位机发送来数据 */
     struct tcp_data tcp_data;
 
     /* 保存配置在某一口井上的汇管压力对应的ID再对应的存储块的ID */
-    int to_id_valve = 0;
+    // int to_id_manifold_1 = 0;
+    // int to_id_manifold_2 = 0;
 
     /* 发送给 zigbee 的数据帧(modbus RTU) */
     struct to_zigbee
@@ -228,14 +286,6 @@ private:
         char ip_addr[16];
         int  port;
     } server_info;
-
-    /* 用于保存站号的类别 */
-    // struct classify_id
-    // {
-    //     int oil_well_id[16];
-    //     int water_well_id[16];
-    //     int valve_group_id[16];
-    // } class_id;
 
     /* 用于指向存储站号的两组数据区 */
     struct data_block *data_block = nullptr;
@@ -293,6 +343,9 @@ private:
     /* 用于给读数据区指针上锁 */
     std::mutex m_rd_db;
 
+    /* 用于给井场RTU信息上锁 */
+    std::mutex m_wellsite;
+
     /* 用于判断接收的井口基础数据是否准备好 */
     std::condition_variable cv_basic_data;
 
@@ -302,40 +355,55 @@ private:
     /* 用于判断当前是否开始请求下一口井的数据的条件变量 */
     std::condition_variable cv_cur_info;
 
+
+
 public:
 
     explicit MultiTask();
 
     virtual ~MultiTask();
 
-    void initThread();
+    /* 初始化线程 */
+    void thread_init();
 
-    void getWellPortInfoThread();
+    /* 获取井口数据线程 */
+    void thread_get_wellport_info();
 
-    void hostRequestProcThread();
+    /* 处理上位机请求线程 */
+    void thread_host_request();
 
-    void updateThread();
+    /* 升级线程 */
+    void thread_update();
 
-    void forwardHostMsgThread();
+    /* 数据库存储线程 */
+    void thread_sql_memory();
 
-    void sqlMemoryThread();
+    /* 看门狗控制线程 */
+    void thread_watchdogctl();
 
     int  get_error()
     {
         return is_error;
     }
 
-    int config_manage();
+    struct config_info get_config() const
+    {
+        return config_info;
+    }
 
-    int rs485(struct state_machine_current_info *curr_info,
-              struct data_block                 *data_block);
 
-    int to_xbee(struct tcp_data *tcp_data);
+    int                config_manage();
 
-    int sel_data_to_tcp(struct tcp_data *tcp_data);
+    int                rs485(struct state_machine_current_info *curr_info,
+                             struct data_block                 *data_block);
 
-    int state_machine_operation(struct state_machine_current_info *curr_info,
-                                struct data_block                 *data_block);
+    int                to_xbee(struct tcp_data *tcp_data);
+
+    int                sel_data_to_tcp(struct tcp_data *tcp_data);
+
+    int                state_machine_operation(
+        struct state_machine_current_info *curr_info,
+        struct data_block                 *data_block);
 };
 
 #endif // ifndef __MULTITASK_H__

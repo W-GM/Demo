@@ -1,0 +1,58 @@
+<CONFIG>
+    <!--基本信息-->
+    <VERSION>1.0</VERSION>
+    <RTU_NAME>cq_1</RTU_NAME> <!--根据此井场名称自动生成id号-->
+
+    <!--网络配置-->
+    <PORT>1502</PORT>
+    <IP>11.11.4.6</IP>
+    <GATEWAY>11.11.5.254</GATEWAY>
+    <MAC>12:35:00:78:00:20</MAC>
+    <MASK>255.255.254.0</MASK>
+
+    <!--汇管压力配置-->
+    <!--高8位（高4位：0为未配置，1为通过井场AI配置，2为通过ZigBee配置；低4位：1～6对应连接到AI的第几个引脚上）-->
+    <!--低8位（配置在第几个站号上）-->
+    <MANIFOLD_PRESSURE_1>2601</MANIFOLD_PRESSURE_1> 
+    <MANIFOLD_PRESSURE_2>0</MANIFOLD_PRESSURE_2>
+    <MANIFOLD_RANGE_1>258</MANIFOLD_RANGE_1> <!--汇管量程,十六进制-->
+    <MANIFOLD_RANGE_2>0</MANIFOLD_RANGE_2>
+
+    <!--zigbee配置-->
+    <XBEE_ID>1991</XBEE_ID>
+    <XBEE_SC>7fff</XBEE_SC>
+    <XBEE_AO>1</XBEE_AO>
+    <XBEE_CE>1</XBEE_CE>
+    
+    <!--井口配置-->
+    <!--未配置为0，油井为1，水井为2-->
+    <WELLHEAD_1>1</WELLHEAD_1> 
+    <WELLHEAD_2>1</WELLHEAD_2>
+    <WELLHEAD_3>0</WELLHEAD_3>
+    <WELLHEAD_4>0</WELLHEAD_4>
+    <WELLHEAD_5>2</WELLHEAD_5>
+    <WELLHEAD_6>0</WELLHEAD_6>
+    <WELLHEAD_7>0</WELLHEAD_7>
+    <WELLHEAD_8>0</WELLHEAD_8>
+    <WELLHEAD_9>0</WELLHEAD_9>
+    <WELLHEAD_10>0</WELLHEAD_10>
+    <WELLHEAD_11>0</WELLHEAD_11>
+    <WELLHEAD_12>0</WELLHEAD_12>
+    <WELLHEAD_13>0</WELLHEAD_13>
+    <WELLHEAD_14>0</WELLHEAD_14>
+    <WELLHEAD_15>0</WELLHEAD_15>
+    <WELLHEAD_16>0</WELLHEAD_16>
+
+    <!--阀组配置-->
+    <!--0:未配置，0x31:通过rs485配置，0x32:通过ZigBee配置-->
+    <VALVE_GROUP_125>0</VALVE_GROUP_125> 
+    <VALVE_GROUP_126>32</VALVE_GROUP_126> 
+    <VALVE_GROUP_127>0</VALVE_GROUP_127>
+    <VALVE_GROUP_128>32</VALVE_GROUP_128>
+
+
+
+
+</CONFIG>
+
+

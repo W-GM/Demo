@@ -212,11 +212,11 @@ void xbeeTx(XBee& xbee, uint8_t *payload, uint8_t payloadlen,
 {
     /* SH + SL Address of receiving XBee */
     
-    //ZBTxRequest zbTx = ZBTxRequest(addr64, payload, payloadlen); /* 0x10 */
-    ZBTxRequest zbTx = ZBTxRequest(addr64, ZB_BROADCAST_ADDRESS, \
-                        ZB_BROADCAST_RADIUS_MAX_HOPS, ZB_TX_UNICAST, \
-                        payload, payloadlen, frameID); /* 0x10 */
-    // ZBExplicitTxRequest zbTx = ZBExplicitTxRequest(addr64, ZB_BROADCAST_ADDRESS, payload, payloadlen); /* 0x11 */
+    // ZBTxRequest zbTx = ZBTxRequest(addr64, payload, payloadlen); /* 0x10 */
+    ZBTxRequest zbTx = ZBTxRequest(addr64, ZB_BROADCAST_ADDRESS, 
+                        ZB_BROADCAST_RADIUS_MAX_HOPS, ZB_TX_UNICAST, 
+                       payload, payloadlen, frameID); /* 0x10 */
+    //ZBExplicitTxRequest zbTx = ZBExplicitTxRequest(addr64, ZB_BROADCAST_ADDRESS, payload, payloadlen); /* 0x11 */
 
     xbee.send(zbTx);
 }

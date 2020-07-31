@@ -26,8 +26,8 @@
     <XBEE_CE>1</XBEE_CE>
     
     <!--井口配置-->
-    <!--从高位到低位 状态位(1)  类型(3):<油井为0，水井为1, 阀组为2>  地址位(4):<偏移量1>-->
-    <WELLHEAD_MAX_NUM>1</WELLHEAD_MAX_NUM>
+    <!--从高位到低位 状态位(1)  类型(3):<油井为0，水井为1>  地址位(4):<偏移量1>-->
+    <WELLHEAD_MAX_NUM>1</WELLHEAD_MAX_NUM> <!--配置的井口最大个数，不包含阀组间-->
     <WELLHEAD_1>0</WELLHEAD_1> 
     <WELLHEAD_2>81</WELLHEAD_2>
     <WELLHEAD_3>2</WELLHEAD_3>

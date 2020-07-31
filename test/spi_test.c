@@ -22,23 +22,23 @@
 #define SINGLE /* 单次采集 */
 
 /* 保存发送给控制寄存器的数据，用于按指定位单独采集 */
-uint8_t spi_buf_tx[][2] = { 0x83, 0x30,
-                            0x87, 0x30,
-                            0x8b, 0x30,
-                            0x8f, 0x30,
-                            0x93, 0x30,
-                            0x97, 0x30,
-                            0x9b, 0x30,
-                            0x9f, 0x30,
-                            0xa3, 0x30,
-                            0xa7, 0x30 };
+// uint8_t spi_buf_tx[][2] = { 0x83, 0x30,
+//                             0x87, 0x30,
+//                             0x8b, 0x30,
+//                             0x8f, 0x30,
+//                             0x93, 0x30,
+//                             0x97, 0x30,
+//                             0x9b, 0x30,
+//                             0x9f, 0x30,
+//                             0xa3, 0x30,
+//                             0xa7, 0x30 };
 
-struct spi_handler
-{
-    spi_t   *spi;       /* 指向spi_new成功的指针 */
-    uint8_t  buf_rx[2]; /* 用于保存接收到的值，前4位代表地址，后12位代表数据 */
-    uint8_t *buf_tx;    /* 指向保存发送给控制寄存器的数据，用于按指定位单独采集 */
-};
+// struct spi_handler
+// {
+//     spi_t   *spi;       /* 指向spi_new成功的指针 */
+//     uint8_t  buf_rx[2]; /* 用于保存接收到的值，前4位代表地址，后12位代表数据 */
+//     uint8_t *buf_tx;    /* 指向保存发送给控制寄存器的数据，用于按指定位单独采集 */
+// };
 
 
 /**
@@ -47,35 +47,87 @@ struct spi_handler
  * @param path spi的设备地址及路径
  * @return spi_t* 成功：spi_new成功后的指针；失败：NULL
  */
-spi_t* spi_init(const char *path)
+// spi_t* spi_init(const char *path)
+// {
+//     /* 用于保存初始化的值 */
+//     uint8_t init[2] = { 0xff, 0xff };
+// 
+//     spi_t *spi = spi_new();
+// 
+//     if (spi == NULL)
+//     {
+//         fprintf(stderr, "spi new error\n");
+//         return NULL;
+//     }
+// 
+//     /* Open spidev1.0 with mode 2 and max speed 1MHz */
+//     if (spi_open_advanced(spi, path, 2, 1000000, MSB_FIRST, 8, 0) < 0)
+//     {
+//         fprintf(stderr, "spi_open(): %s\n", spi_errmsg(spi));
+//         return NULL;
+//     }
+// 
+//     /* 初始化，将控制寄存器的所有位 置1 */
+//     if (spi_transfer(spi, init, NULL, sizeof(init)) < 0)
+//     {
+//         fprintf(stderr, "spi_transfer(): %s\n", spi_errmsg(spi));
+//         return NULL;
+//     }
+// 
+//     return spi;
+// }
+
+int main(int argc, char const *argv[])
 {
-    /* 用于保存初始化的值 */
-    uint8_t init[2] = { 0xff, 0xff };
-
-    spi_t *spi = spi_new();
-
-    if (spi == NULL)
+    if(argc < 2)
     {
-        fprintf(stderr, "spi new error\n");
-        return NULL;
+        printf("parameter too few\n");
+        return -1;
+    }
+    else if(argc > 2)
+    {
+        printf("parameter too much\n");
+        return -1;
     }
 
-    /* Open spidev1.0 with mode 2 and max speed 1MHz */
-    if (spi_open_advanced(spi, path, 2, 1000000, MSB_FIRST, 8, 0) < 0)
+    int n = argv[1][0] - 0x31;
+    printf("n = %d\n", n);
+
+    double add;
+
+    struct spi_handler spi_ai;
+    spi_ai.buf_rx[0] = 0;
+    spi_ai.buf_rx[1] = 0;
+
+    spi_ai.spi = spi_init("/dev/spidev0.0");
+    if (spi_ai.spi == NULL)
     {
-        fprintf(stderr, "spi_open(): %s\n", spi_errmsg(spi));
-        return NULL;
+        printf("spi_init error\n");
+        return -1;
     }
 
-    /* 初始化，将控制寄存器的所有位 置1 */
-    if (spi_transfer(spi, init, NULL, sizeof(init)) < 0)
-    {
-        fprintf(stderr, "spi_transfer(): %s\n", spi_errmsg(spi));
-        return NULL;
-    }
+    /* 保存发送给控制寄存器的数据，用于按指定位单独采集 */
+    spi_ai.buf_tx = spi_buf_tx;
 
-    return spi;
+    for (int i = 0; i < 2; i++)
+    {
+        if (spi_transfer(spi_ai.spi, spi_ai.buf_tx[n], spi_ai.buf_rx,
+                         sizeof(spi_ai.buf_rx)) < 0)
+        {
+            fprintf(stderr, "spi_transfer(): %s\n", spi_errmsg(spi_ai.spi));
+            exit(1);
+        }
+    }
+    add = (((spi_ai.buf_rx[0] << 8) | (spi_ai.buf_rx[1] & 0xff)) & 0xfff) * 0.005055147;
+    printf("adc[%d] >> %f\n", (spi_ai.buf_rx[0] >> 4), add);
+
+    spi_close(spi_ai.spi);
+    spi_free(spi_ai.spi);
+
+    return 0;
 }
+
+#if 0
 
 int main(void)
 {
@@ -158,9 +210,10 @@ int main(void)
 
 #endif /* ifdef SINGLE */
 
-    spi_close(spi);
+    spi_close(spi_ai.spi);
 
-    spi_free(spi);
+    spi_free(spi_ai.spi);
 
     return 0;
 }
+#endif

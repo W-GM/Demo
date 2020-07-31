@@ -68,6 +68,19 @@ static const uint8_t table_crc_lo[] = {
 
 uint16_t    crc16(uint8_t *buffer,
                   uint16_t buffer_length);
-std::string getCurTime(time_t *custom_time);
+
+struct currtime
+{
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
+    int second;
+};
+
+std::string get_ime(time_t *custom_time);
+
+struct currtime get_current_time();
 
 #endif // ifndef __HELPER_H__

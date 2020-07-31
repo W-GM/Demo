@@ -23,7 +23,7 @@ uint16_t crc16(uint8_t *buffer, uint16_t buffer_length)
  * @param custom_time 指向自定义时间，当为nullptr时，获取当前时间
  * @return std::string 自定义格式的 自定义/当前 时间
  */
-std::string getCurTime(time_t *custom_time)
+std::string get_time(time_t *custom_time)
 {
     struct tm *t;
     time_t tt = 0;
@@ -46,4 +46,28 @@ std::string getCurTime(time_t *custom_time)
             t->tm_sec);
 
     return std::string(temp);
+}
+
+/**
+ * @brief Get the current time object
+ * 
+ * @return struct currtime 
+ */
+struct currtime get_current_time()
+{
+    struct tm *t;
+    struct currtime currtime;
+    
+    time_t tt = 0;
+    time(&tt);
+    t = localtime(&tt);
+
+    currtime.year = t->tm_year + 1900;
+    currtime.month = t->tm_mon + 1;
+    currtime.day = t->tm_mday;
+    currtime.hour = t->tm_hour;
+    currtime.minute = t->tm_min;
+    currtime.second = t->tm_sec;
+
+    return currtime;
 }

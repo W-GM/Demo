@@ -51,24 +51,39 @@ int main()
 
     signal(SIGINT, close_sigint);
 
-    std::thread initthread(&MultiTask::initThread, &app);
-    initthread.join();
 
-    std::thread getwellportinfothread(&MultiTask::getWellPortInfoThread, &app);
 
-    std::thread hostrequestprocthread(&MultiTask::hostRequestProcThread, &app);
-#ifdef SQL
-    std::thread sqlmemorythread(&MultiTask::sqlMemoryThread, &app);
+    std::thread Init_thread(&MultiTask::thread_init, &app);
+    Init_thread.join();
+
+    std::thread Get_wellport_info_thread(&MultiTask::thread_get_wellport_info, &app);
+
+#if 0    
+    std::thread Host_request_thread(&MultiTask::thread_host_request, &app);
+
+    std::thread Watchdogctl_thread(&MultiTask::thread_watchdogctl, &app);
+
+    std::thread Update_thread(&MultiTask::thread_update, &app);
 #endif
-    // std::thread updatethread(&MultiTask::updateThread, &app);
 
-
-    getwellportinfothread.join();
-    hostrequestprocthread.join();
 #ifdef SQL
-    sqlmemorythread.join();
+    std::thread Sql_memory_thread(&MultiTask::thread_sql_memory, &app);
 #endif
-    //updatethread.join();
+
+    
+    Get_wellport_info_thread.join();
+
+#if 0
+    Host_request_thread.join();
+
+    Watchdogctl_thread.join();
+
+    Update_thread.join();
+#endif
+
+#ifdef SQL
+    Sql_memory_thread.join();
+#endif
 
     return 0;
 }
