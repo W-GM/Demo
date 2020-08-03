@@ -444,7 +444,7 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
         if (tcp_data->func_code == 0x06)
         {
             /* 组装下发给各井口的指令帧 */
-            to_zigbee.data[0] = tcp_data->rtu_id;
+            to_zigbee.data[0] = tcp_data->id;
             to_zigbee.data[1] = tcp_data->func_code;
             to_zigbee.data[2] = tcp_data->start_addr >> 8;
             to_zigbee.data[3] = tcp_data->start_addr & 0xff;
@@ -462,7 +462,7 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
         else if (tcp_data->func_code == 0x10)
         {
             /* 组装下发给各井口的指令帧 */
-            to_zigbee.data[0] = tcp_data->rtu_id;
+            to_zigbee.data[0] = tcp_data->id;
             to_zigbee.data[1] = tcp_data->func_code;
             to_zigbee.data[2] = tcp_data->start_addr >> 8;
             to_zigbee.data[3] = tcp_data->start_addr & 0xff;
@@ -488,7 +488,7 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
         else if (tcp_data->func_code == 0x03)
         {
             /* 复制原有内容 */
-            to_zigbee.data[0] = tcp_data->rtu_id;
+            to_zigbee.data[0] = tcp_data->id;
             to_zigbee.data[1] = tcp_data->func_code;
 
             if (to_len > 40)
@@ -517,7 +517,7 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
 
         for (int i = 0; i < get_config().well_max_num; i++)
         {
-            if (get_config().well_info[i].id == tcp_data->rtu_id)
+            if (get_config().well_info[i].id == tcp_data->id)
             {
                 XBeeAddress64 addr64 = XBeeAddress64(
                     get_config().well_info[i].addr >> 32,
@@ -638,7 +638,7 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
     }
     else
     {
-        to_tcp_frame.push_back(tcp_data->rtu_id);
+        to_tcp_frame.push_back(tcp_data->id);
         to_tcp_frame.push_back(tcp_data->func_code);
         to_tcp_frame.push_back((tcp_data->len * 2) & 0xff);
 
@@ -680,7 +680,7 @@ int MultiTask::to_xbee(struct tcp_data *tcp_data)
 
     return 0;
 }
-
+#endif
 /**
  * @brief 将临时缓存区中的数据返给上位机
  *
@@ -692,7 +692,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
     int ret = 0;
 
     /* 站号对应的位置 */
-    int id_site = 0;
+    int id_addr = 0;
 
     /* 用于判断是否是从井场40051(汇管压力)开始读取多位寄存器值 */
     int st = 0;
@@ -709,18 +709,18 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
     /* 用于组合发送给上位机的数据帧 */
     std::vector<uint8_t> to_tcp_frame;
 
-    /* 判断站号是否在当前配置相里，没有则退出当前函数 */
-    while (id_site < get_config().well_max_num)
+    /* 判断站号是否在当前配置项里，没有则退出当前函数 */
+    while (id_addr < get_config().well_max_num)
     {
-        if (tcp_data->rtu_id != get_config().well_info[id_site].id)
+        if (tcp_data->id != get_config().well_info[id_addr].id)
         {
-            id_site++;
+            id_addr++;
             continue;
         }
         break;
     }
 
-    if (id_site >= get_config().well_max_num)
+    if (id_addr >= get_config().well_max_num)
     {
         return -1;
     }
@@ -734,7 +734,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
     to_tcp_frame.push_back((tcp_data->len * 2 + 3) & 0xff);
 
     /* 加站号，功能码 */
-    to_tcp_frame.push_back(tcp_data->rtu_id);
+    to_tcp_frame.push_back(tcp_data->id);
     to_tcp_frame.push_back(tcp_data->func_code);
 
     /* 请求读寄存器 */
@@ -744,7 +744,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
         to_tcp_frame.push_back((tcp_data->len * 2) & 0xff);
 
         /* 油井数据类型 */
-        if (get_config().well_info[id_site].type == TYPE_OIL_WELL_DATA)
+        if (get_config().well_info[id_addr].type == TYPE_OIL_WELL_DATA)
         {
             if ((tcp_data->start_addr >= 0) && (tcp_data->start_addr <= 209))
             {
@@ -767,9 +767,9 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                      i < (tcp_data->start_addr + dif_len); i++)
                 {
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_site].oil_basic_data[i] >> 8);
+                        to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_site].oil_basic_data[i] & 0xff);
+                        to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
                 }
 
                 /* ###### 解锁 ###### */
@@ -806,9 +806,9 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                      i < (tcp_data->start_addr - 1200 + dif_len); i++)
                 {
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_site].oil_basic_data[i] >> 8);
+                        to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_site].oil_basic_data[i] & 0xff);
+                        to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
                 }
 
                 /* ###### 解锁 ###### */
@@ -850,14 +850,23 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
             }
         }
 
-        /* 水井数据类型 */
-        else if (get_config().well_info[id_site].type ==
-                 TYPE_WATER_WELL_DATA)
+        /* 水源井数据类型 */
+        else if (get_config().well_info[id_addr].type == TYPE_WATER_WELL_DATA)
         {
             /* 判断查询的数据为哪一部分 */
-            if ((tcp_data->start_addr >= 0) && \
-                ((tcp_data->start_addr + tcp_data->len) <= 20))
+            if ((tcp_data->start_addr >= 0) && 
+                (tcp_data->start_addr <= 29))
             {
+                dif = tcp_data->start_addr + tcp_data->len - 30;
+                if (dif > 0)
+                {
+                    dif_len = tcp_data->len - dif;
+                }
+                else
+                {
+                    dif_len = tcp_data->len;
+                }
+
                 /* ###### 上锁 ###### */
                 m_rd_db.lock();
 
@@ -866,13 +875,22 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                      i < (tcp_data->start_addr + tcp_data->len); i++)
                 {
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_site].water_well_data[i] >> 8);
+                        to_db.rd_db[id_addr].water_well_data[i] >> 8);
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_site].water_well_data[i] & 0xff);
+                        to_db.rd_db[id_addr].water_well_data[i] & 0xff);
                 }
 
                 /* ###### 解锁 ###### */
                 m_rd_db.unlock();
+
+                if (dif > 0)
+                {
+                    for (int i = 0; i < dif; i++)
+                    {
+                        to_tcp_frame.push_back(0);
+                        to_tcp_frame.push_back(0);
+                    }
+                }
             }
             else
             {
@@ -881,9 +899,84 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
         }
 
         /* 阀组间数据类型 */
-        else if (get_config().well_info[id_site].type ==
-                 TYPE_VALVE_GROUP_DATA)
+        else if (get_config().well_info[id_addr].type == TYPE_VALVE_GROUP_DATA)
         {
+            /* ###### 上锁 ###### */
+            m_rd_db.lock();
+
+            if ((tcp_data->start_addr >= 0) && 
+                (tcp_data->start_addr <= 59))
+            {
+                dif = tcp_data->start_addr + tcp_data->len - 60;
+                if (dif > 0)
+                {
+                    dif_len = tcp_data->len - dif;
+                }
+                else
+                {
+                    dif_len = tcp_data->len;
+                }
+
+                for (uint16_t i = tcp_data->start_addr;
+                     i < (tcp_data->start_addr + tcp_data->len); i++)
+                {
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_addr].water_well_data[i] >> 8);
+                    to_tcp_frame.push_back( \
+                        to_db.rd_db[id_addr].water_well_data[i] & 0xff);
+                }
+
+                if (dif > 0)
+                {
+                    for (int i = 0; i < dif; i++)
+                    {
+                        to_tcp_frame.push_back(0);
+                        to_tcp_frame.push_back(0);
+                    }
+                }
+
+            }
+
+            for(uint8_t i = 1; i <= to_db.rd_db[id_addr].injection_well_num; i++)
+            {
+                if((tcp_data->start_addr >= (100 * i)) && 
+                   (tcp_data->start_addr <= (100 * i + 6)))
+                {
+                    dif = tcp_data->start_addr + tcp_data->len - (100 * i + 7);
+                    if (dif > 0)
+                    {
+                        dif_len = tcp_data->len - dif;
+                    }
+                    else
+                    {
+                        dif_len = tcp_data->len;
+                    }
+
+                    for (uint16_t j = tcp_data->start_addr;
+                     j < (tcp_data->start_addr + tcp_data->len); i++)
+                    {
+                        to_tcp_frame.push_back( \
+                            to_db.rd_db[id_addr].water_well_data[j / 100] >> 8);
+                        to_tcp_frame.push_back( \
+                            to_db.rd_db[id_addr].water_well_data[j] & 0xff);
+                    }
+
+                    if (dif > 0)
+                    {
+                        for (int m = 0; m < dif; m++)
+                        {
+                            to_tcp_frame.push_back(0);
+                            to_tcp_frame.push_back(0);
+                        }
+                    }
+                }
+            }
+
+            /* ###### 解锁 ###### */
+            m_rd_db.unlock();
+
+
+
             /* ###### 上锁 ###### */
             m_rd_db.lock();
 
@@ -914,9 +1007,9 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                          i++)
                     {
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_site].valve_group_data_manage[i] >> 8);
+                            to_db.rd_db[id_addr].valve_group_data_manage[i] >> 8);
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_site].valve_group_data_manage[i] &
+                            to_db.rd_db[id_addr].valve_group_data_manage[i] &
                             0xff);
                     }
                 }
@@ -1007,7 +1100,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
     return 0;
 }
 
-#endif
+
 
 /**
  * @brief 用于在与井口通讯线程中状态机的交互过程
@@ -1533,7 +1626,7 @@ void MultiTask::thread_init()
 #endif // ifdef ARMCQ
 
     /* --------------初始化上位机发送来的数据------------ */
-    tcp_data.rtu_id = 0;
+    tcp_data.id = 0;
     tcp_data.func_code = 0x03;
     tcp_data.start_addr = 0;
     tcp_data.len = 0;
@@ -1578,8 +1671,8 @@ void MultiTask::thread_init()
     for (int i = 0; i < get_config().well_max_num; i++)
     {
 
-        data_block[i].rtu_id = get_config().well_info[i].id;
-        data_block_2[i].rtu_id = get_config().well_info[i].id;
+        data_block[i].id = get_config().well_info[i].id;
+        data_block_2[i].id = get_config().well_info[i].id;
 
         data_block[i].injection_well_num = 0;
         data_block_2[i].injection_well_num = 0;
@@ -2091,7 +2184,7 @@ void MultiTask::thread_get_wellport_info()
     delete[] data_block;
     data_block = nullptr;
 }
-#if 0
+
 /**
  * @brief 处理上位机请求线程
  *
@@ -2219,24 +2312,41 @@ void MultiTask::thread_host_request()
                     {
                         tcp_data.frame_header[i] = query[i];
                     }
-                    tcp_data.rtu_id = query[6];
+                    tcp_data.id = query[6];
                     tcp_data.func_code = query[7];
-                    tcp_data.start_addr = (query[8] << 8) |
-                                          (query[9] & 0xff);
-                    tcp_data.len = (query[10] << 8) | (query[11] & 0xff);
+                    tcp_data.start_addr = (query[8] << 8) | (query[9] & 0xff);
 
-                    /* 读寄存器 */
-                    if (tcp_data.func_code == 0x03)
+                    /* 读保持寄存器或输入寄存器 */
+                    if ((tcp_data.func_code == 0x01) || 
+                        (tcp_data.func_code == 0x02) || 
+                        (tcp_data.func_code == 0x03) || 
+                        (tcp_data.func_code == 0x04))
                     {
                         tcp_data.len = \
                             (query[10] << 8) | (query[11] & 0xff);
                     }
 
-                    /* 写单个寄存器 */
-                    else if (tcp_data.func_code == 0x06)
+                    /* 写单个线圈或单个寄存器 */
+                    else if ((tcp_data.func_code == 0x05) || 
+                             (tcp_data.func_code == 0x06))
                     {
                         tcp_data.set_val = \
                             (query[10] << 8) | (query[11] & 0xff);
+                    }
+
+                    /* 写多个线圈 */
+                    else if(tcp_data.func_code == 0x0f)
+                    {
+                        tcp_data.len = \
+                            (query[10] << 8) | (query[11] & 0xff);
+                        tcp_data.byte_count = query[12];
+                        memset(tcp_data.value, 0, sizeof(tcp_data.value));
+
+                        for (int i = 0; i < tcp_data.byte_count; i++)
+                        {
+                            /* 将当前的单字节线圈输出值保存为双字节 */
+                            tcp_data.value[i] = query[13 + i];
+                        }
                     }
 
                     /* 写多个寄存器 */
@@ -2248,11 +2358,15 @@ void MultiTask::thread_host_request()
 
                         memset(tcp_data.value, 0, sizeof(tcp_data.value));
 
-                        for (int i = 0; i < (tcp_data.len / 2); i++)
+                        for (int i = 0; i < tcp_data.len; i++)
                         {
                             tcp_data.value[i] = \
                                 (query[13 + i] << 8) | (query[14 + i] & 0xff);
                         }
+                    }
+                    else
+                    {
+                        continue;
                     }
 
                     /* 与上位机进行数据交互 */
@@ -2279,7 +2393,7 @@ void MultiTask::thread_host_request()
     }
 }
 
-#endif
+
 
 #ifdef SQL
 

@@ -130,7 +130,7 @@ struct state_machine_current_info
  */
 struct data_block
 {
-    uint8_t              rtu_id;             /* 站号 */
+    uint8_t              id;                 /* 站号 */
     std::vector<uint16_t>oil_basic_data;     /* 油井基础数据(包含功图基础数据) */
     std::vector<uint16_t>ind_diagram;        /* 功图数据 */
     std::vector<uint16_t>water_well_data;    /* 水源井数据 */
@@ -148,13 +148,14 @@ struct data_block
 struct tcp_data
 {
     uint8_t  frame_header[6]; /* 帧头 */
-    uint8_t  rtu_id;          /* 站号 */
+    uint8_t  id;              /* 站号 */
     uint8_t  func_code;       /* 功能码 */
+    uint8_t byte_count;       /* 字节个数（功能码0x10, 0x0f） */
+    //uint8_t coils_data[20];   /* 线圈输出值 (功能码0x0f) */
     uint16_t start_addr;      /* 寄存器起始地址 */
     uint16_t len;             /* 寄存器的长度/个数 */
     uint16_t set_val;         /* 向寄存器中写入的值（功能码0x06） */
-    uint16_t byte_count;      /* 字节个数（功能码0x10） */
-    uint16_t value[10];       /* 向多个寄存器中写入的值（功能码0x10） */
+    uint16_t value[20];       /* 向多个寄存器中写入的值（功能码0x10, 0x0f时只当做单字节使用） */
 };
 
 /**
