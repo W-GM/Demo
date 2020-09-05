@@ -340,18 +340,22 @@ spi_t* spi_init(const char *path)
     }
 
     /* Open spidev1.0 with mode 2 and max speed 1MHz */
-    if (spi_open_advanced(spi, path, 2, 1000000, MSB_FIRST, 8, 0) < 0)
+    if (spi_open_advanced(spi, path, 2, 100000, MSB_FIRST, 8, 0) < 0)
     {
         fprintf(stderr, "spi_open(): %s\n", spi_errmsg(spi));
         return NULL;
     }
 
     /* 初始化，将控制寄存器的所有位 置1 */
-    if (spi_transfer(spi, init, NULL, sizeof(init)) < 0)
+    for(int i = 0; i < 2; i++)
     {
-        fprintf(stderr, "spi_transfer(): %s\n", spi_errmsg(spi));
-        return NULL;
+        if (spi_transfer(spi, init, NULL, sizeof(init)) < 0)
+        {
+            fprintf(stderr, "spi_transfer(): %s\n", spi_errmsg(spi));
+            return NULL;
+        }
     }
+    
 
     return spi;
 }

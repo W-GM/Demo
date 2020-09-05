@@ -32,7 +32,6 @@
 //                             0x9f, 0x30,
 //                             0xa3, 0x30,
 //                             0xa7, 0x30 };
-
 // struct spi_handler
 // {
 //     spi_t   *spi;       /* 指向spi_new成功的指针 */
@@ -94,6 +93,7 @@ int main(int argc, char const *argv[])
     printf("n = %d\n", n);
 
     double add;
+    uint16_t ppp;
 
     struct spi_handler spi_ai;
     spi_ai.buf_rx[0] = 0;
@@ -118,8 +118,13 @@ int main(int argc, char const *argv[])
             exit(1);
         }
     }
+    printf("adc[%d] 原始数据>> %d\n", (spi_ai.buf_rx[0] >> 4), ((spi_ai.buf_rx[0] << 8) | (spi_ai.buf_rx[1] & 0xff)) & 0xfff);
     add = (((spi_ai.buf_rx[0] << 8) | (spi_ai.buf_rx[1] & 0xff)) & 0xfff) * 0.005055147;
     printf("adc[%d] >> %f\n", (spi_ai.buf_rx[0] >> 4), add);
+
+    /*通过计算得到的扩大100倍的汇管数据*/
+    ppp = (add - 4) / 16 * 100 * 6 ;
+    printf("adc[%d] 汇管数据>> %d\n", (spi_ai.buf_rx[0] >> 4), ppp);
 
     spi_close(spi_ai.spi);
     spi_free(spi_ai.spi);

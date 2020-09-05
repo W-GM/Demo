@@ -18,16 +18,19 @@ void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
     // 存储响应的对象
     AtCommandResponse atResponse = AtCommandResponse();
 
-    debug("%s:%s:%d>> Sending command to the XBee\n", __FILE__, __func__,
-          __LINE__);
+    debug("%s\n", "Send Xbee Command Frame >>");
 
     // 发送
     xbee.send(atRequest);
 
+    debug("%s\n","");
+
+    debug("%s\n", "Recv Xbee Command Frame >>");
+
     // 等待长达5秒钟的状态响应
     if (xbee.readPacket(10))
     {
-        debug("%s:%s:%d  get a response\n", __FILE__, __func__, __LINE__);
+        debug("%s\n", "");
 
         if (xbee.getResponse().getApiId() == AT_COMMAND_RESPONSE)
         {
@@ -36,25 +39,26 @@ void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
 
             if (atResponse.isOk())
             {
+                printf("***************************************************\n");
                 printf("Command [");
                 printf("%c", atResponse.getCommand()[0]);
                 printf("%c", atResponse.getCommand()[1]);
-                printf("] was successful!\n");
+                printf("] is OK!!!\n");
 
                 // 打印帧数据
 
 
-                printf("frame packet is : 7e ");
-                printf("%x ", atResponse.getMsbLength());
-                printf("%x ", atResponse.getLsbLength());
-                printf("%x ", atResponse.getApiId());
+                // printf("frame packet is : 7e ");
+                // printf("%02x ", atResponse.getMsbLength());
+                // printf("%02x ", atResponse.getLsbLength());
+                // printf("%02x ", atResponse.getApiId());
 
 
-                for (int i = 0; i < atResponse.getFrameDataLength(); i++)
-                {
-                    printf("%x ", atResponse.getFrameData()[i]);
-                }
-                printf("%x\n", atResponse.getChecksum());
+                // for (int i = 0; i < atResponse.getFrameDataLength(); i++)
+                // {
+                //     printf("%02x ", atResponse.getFrameData()[i]);
+                // }
+                // printf("%02x\n", atResponse.getChecksum());
 
                 if (atResponse.getValueLength() > 0)
                 {
@@ -65,7 +69,7 @@ void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
 
                     for (int i = 0; i < atResponse.getValueLength(); i++)
                     {
-                        printf("%x", atResponse.getValue()[i]);
+                        printf("%02x", atResponse.getValue()[i]);
                         printf(" ");
                     }
 
@@ -75,13 +79,13 @@ void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
             else
             {
                 printf("Command return error code: ");
-                printf("%x\n", atResponse.getStatus());
+                printf("%02x\n", atResponse.getStatus());
             }
         }
         else
         {
             printf("Return an error AT response: ");
-            printf("%x\n", xbee.getResponse().getApiId());
+            printf("%02x\n", xbee.getResponse().getApiId());
         }
     }
     else
@@ -91,7 +95,7 @@ void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
         if (xbee.getResponse().isError())
         {
             printf("Error reading packet.  Error code: ");
-            printf("%x\n", xbee.getResponse().getErrorCode());
+            printf("%02x\n", xbee.getResponse().getErrorCode());
         }
         else
         {
@@ -212,7 +216,7 @@ void xbeeTx(XBee& xbee, uint8_t *payload, uint8_t payloadlen,
 {
     /* SH + SL Address of receiving XBee */
     
-    // ZBTxRequest zbTx = ZBTxRequest(addr64, payload, payloadlen); /* 0x10 */
+    //ZBTxRequest zbTx = ZBTxRequest(addr64, payload, payloadlen); /* 0x10 */
     ZBTxRequest zbTx = ZBTxRequest(addr64, ZB_BROADCAST_ADDRESS, 
                         ZB_BROADCAST_RADIUS_MAX_HOPS, ZB_TX_UNICAST, 
                        payload, payloadlen, frameID); /* 0x10 */
@@ -277,10 +281,13 @@ int xbeeRx(XBee& xbee, uint8_t *data, int *len, uint64_t *slave_addr)
         {
             xbee.getResponse().getZBTxStatusResponse(txStatus);
 
+            printf("响应状态 >> ");
+
             // 获取发送(交付)状态，在第五个字节
             if (txStatus.getDeliveryStatus() == SUCCESS)
             {
                 printf("响应成功\n");
+                return 6;
             }
             else if (txStatus.getDeliveryStatus() == ADDRESS_NOT_FOUND)
             {
@@ -380,7 +387,7 @@ int xbeeRx(XBee& xbee, uint8_t *data, int *len, uint64_t *slave_addr)
             // debug("%x ",           rxios.getMsbLength());
             // debug("%x ",           rxios.getLsbLength());
             // debug("%x ",           rxios.getApiId());
-// 
+ 
             /* 将收到的数据发送给调用者 */
             for (int i = 0; i < rxios.getFrameDataLength() - 17; i++)
             {

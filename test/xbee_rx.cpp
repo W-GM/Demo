@@ -14,7 +14,7 @@ struct Point poi = Point(0x00, 0x22);
  */
 void xbeeRx(XBee& xbee, ZBRxIoSampleResponse &rxios, Screen *scr)
 {
-    XBeeResponse response = XBeeResponse();
+    //XBeeResponse response = XBeeResponse();
     
     ZBRxResponse rx = ZBRxResponse();  // 90
     ModemStatusResponse msr = ModemStatusResponse();  // 8a
@@ -127,7 +127,7 @@ void xbeeRx(XBee& xbee, ZBRxIoSampleResponse &rxios, Screen *scr)
         }
 
         // 在屏幕显示字符，支持，asciii 和 GB2312 编码
-        scr->DisplayString(0, 1, 0x02, 0xffff, 0x0000, poi, Data);
+        //scr->DisplayString(0, 1, 0x02, 0xffff, 0x0000, poi, Data);
 #if 0
         for (int i = 0; i < rxios.getFrameDataLength(); i++)
         {

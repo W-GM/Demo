@@ -68,13 +68,21 @@ uart:
 	$(PATH_TEST)rs485-test.c \
 	-o $(PATH_BUILD)rs485-arm
 
-xbee-at:
+xbee:
+	g++ -g -DDEBUG -std=c++1y -Wall \
+	-I$(PATH_INCLUDE) \
+	-L$(PATH_LIB) \
+	$(PATH_LIBRARY)uart.cpp  $(PATH_LIBRARY)xbee_op.cpp $(PATH_LIBRARY)i2c.c \
+	$(PATH_LIBRARY)xbee_request.cpp $(PATH_LIBRARY)xbee.cpp $(PATH_LIBRARY)xbee_response.cpp \
+	$(PATH_TEST)xbee_test.cpp \
+	-o $(PATH_BUILD)xbee-test
+
+xbee-arm:
 	arm-linux-gnueabihf-g++ -g -DDEBUG -std=c++1y -Wall \
 	-I$(PATH_INCLUDE) \
-	-lpthread -lmodbus -lsqlite3 \
 	-L$(PATH_LIB) \
-	$(PATH_LIBRARY)uart.cpp  $(PATH_LIBRARY)xbee_op.cpp \
+	$(PATH_LIBRARY)uart.cpp  $(PATH_LIBRARY)xbee_op.cpp $(PATH_LIBRARY)i2c.c \
 	$(PATH_LIBRARY)xbee_request.cpp $(PATH_LIBRARY)xbee.cpp $(PATH_LIBRARY)xbee_response.cpp \
-	$(PATH_TEST)xbee_rx.cpp $(PATH_TEST)xbee_tx.cpp $(PATH_TEST)xbee_atcmd.cpp $(PATH_TEST)xbee_remote_atcmd.cpp \
-	$(PATH_TEST)main_xbee_atCmd.cpp \
-	-o $(PATH_BUILD)xbee_at
+	$(PATH_TEST)xbee_test.cpp \
+	-o $(PATH_BUILD)xbee-test-arm
+

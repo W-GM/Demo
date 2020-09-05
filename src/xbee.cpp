@@ -176,12 +176,12 @@ bool XBee::readPacket(int timeout)
 
     unsigned long start = millis();
 
-    debug("%s:%s:%d  millis = %ld\n", __FILE__, __func__, __LINE__, start);
+    // debug("%s:%s:%d  millis = %ld\n", __FILE__, __func__, __LINE__, start);
 
     while ((((long)millis() - (long)start)) < timeout)
     {
-        debug("%s:%s:%d  millis = %ld\n", __FILE__, __func__, __LINE__,
-              (millis() - start));
+        // debug("%s:%s:%d  millis = %ld\n", __FILE__, __func__, __LINE__,
+        //       (millis() - start));
         readPacket();
 
         if (getResponse().isAvailable())

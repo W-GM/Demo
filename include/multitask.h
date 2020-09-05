@@ -34,7 +34,9 @@ using namespace tinyxml2;
 /* 允许监听的最大个数 */
 #define NB_CONNECTON 5
 
-// #define ARMCQ
+#define ARMCQ
+
+//#define ANTE_AI
 
 /**
  * @brief 厂家名称
@@ -66,7 +68,7 @@ enum communication_connect_type
 enum state_machine
 {
     PHASE_START,             /* 起始阶段 */
-    PHASE_OIL_WELL_BASIC,    /* 油井基础数据(包含功图基础数据) */
+    PHASE_OIL_WELL,          /* 油井数据 */
     PHASE_WATER_WELL,        /* 水源井数据 */
     PHASE_VALVE_GROUP,       /* 阀组间数据 */
     PHASE_MANIFOLD_PRESSURE, /* 汇管压力数据 */
@@ -84,8 +86,9 @@ enum stroe_type
     TYPE_WATER_WELL_DATA,       /* 水源井数据类型 */
     TYPE_VALVE_GROUP_DATA,      /* 阀组间数据类型 */
     TYPE_MANIFOLD_PRESSURE_1,   /* 汇管压力1(AI)数据类型 */
-    TYPE_MANIFOLD_PRESSURE_2    /* 汇管压力2(AI)数据类型 */
-    //TYPE_MANIFOLD_PRESSURE_ONLY /* 汇管压力(AI)数据类型.. */
+    TYPE_MANIFOLD_PRESSURE_2,   /* 汇管压力2(AI)数据类型 */
+    TYPE_INDICATION_DIAGRAM,    /* 功图数据类型 */
+    TYPE_POWER_DIAGRAM          /* 功率图数据类型 */
 };
 
 /**
@@ -101,6 +104,9 @@ enum error_mun
     ERROR_SPI,    /* 初始化spi失败 */
     ERROR_485,    /* 初始化485失败 */
     ERROR_SQL,    /* 初始化数据库失败 */
+
+    ERROR_XBEE_RECV_TIMEOUT, /* zigbee接收超时 */
+    ERROR_XBEE_RECV_DATA     /* zigbee接收数据错误 */
 };
 
 /**
@@ -131,8 +137,9 @@ struct state_machine_current_info
 struct data_block
 {
     uint8_t              id;                 /* 站号 */
-    std::vector<uint16_t>oil_basic_data;     /* 油井基础数据(包含功图基础数据) */
+    std::vector<uint16_t>oil_basic_data;     /* 油井基础数据(包含功图基础数据部分) */
     std::vector<uint16_t>ind_diagram;        /* 功图数据 */
+    std::vector<uint16_t>power_diagram;      /* 功率图数据 */
     std::vector<uint16_t>water_well_data;    /* 水源井数据 */
     std::vector<uint16_t>valve_group_data;   /* 阀组间原始数据 */
     std::vector<uint16_t>wellsite_rtu;       /* 井场RTU的数据 */
@@ -167,7 +174,7 @@ struct config_info
     string version;  /* 固件版本 */
     string rtu_name; /* rtu名称 */
 
-    int    port;     /* 端口号 */
+    uint16_t port;     /* 端口号 */
     string ip;       /* ip地址 */
     string gateway;  /* 网关 */
     string mac;      /* mac地址 */
@@ -182,10 +189,10 @@ struct config_info
         uint16_t range; /* 量程 */
     } manifold_1, manifold_2;
 
-    string xbee_id;   /* 16位的PAN ID */
-    string xbee_sc;   /* 7fff */
-    int    xbee_ao;   /* 0:<不接收ack>  1:<接收ack> */
-    int    xbee_ce;   /* 0:<路由器>  1:<协调器> */
+    string   xbee_id;   /* 16位的PAN ID */
+    string   xbee_sc;   /* 7fff */
+    uint16_t xbee_ao;   /* 0:<不接收ack>  1:<接收ack> */
+    uint16_t xbee_ce;   /* 0:<路由器>  1:<协调器> */
 
     /* 井口的配置信息 */
     struct well_info
@@ -198,6 +205,9 @@ struct config_info
 
     /* 配置的井口和阀组的个数 */
     int well_max_num;
+
+    /* 自定义的与上位机间通信的配置寄存器信息，对应站号为222 */
+    uint16_t reg_value[100];
 };
 
 
@@ -391,6 +401,9 @@ public:
     {
         return config_info;
     }
+
+    int get_tcp_config(const char * value, char * get_value, int addr, int time);
+    
 
 
     int                config_manage();

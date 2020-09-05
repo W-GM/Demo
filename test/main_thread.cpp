@@ -52,17 +52,16 @@ int main()
     signal(SIGINT, close_sigint);
 
 
-
     std::thread Init_thread(&MultiTask::thread_init, &app);
     Init_thread.join();
 
     std::thread Get_wellport_info_thread(&MultiTask::thread_get_wellport_info, &app);
 
-#if 0    
+   
     std::thread Host_request_thread(&MultiTask::thread_host_request, &app);
 
     std::thread Watchdogctl_thread(&MultiTask::thread_watchdogctl, &app);
-
+#if 0
     std::thread Update_thread(&MultiTask::thread_update, &app);
 #endif
 
@@ -73,11 +72,10 @@ int main()
     
     Get_wellport_info_thread.join();
 
-#if 0
     Host_request_thread.join();
 
     Watchdogctl_thread.join();
-
+#if 0
     Update_thread.join();
 #endif
 
