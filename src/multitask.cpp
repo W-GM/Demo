@@ -335,6 +335,8 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
 
     int ret = 0;
 
+    bool stat = false;
+
     /* 保存允许出错的次数 */
     int err_num = 0;
 
@@ -452,7 +454,7 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
 
         curr_info->phase = PHASE_START;
         curr_info->isGetTime = false;
-        return -1;
+        stat = false;
     }
 
     /* 判断接收到的rs485数据是否正确 */
@@ -461,7 +463,11 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
        (from_485_data[2] != curr_info->addr_len * 2))
     {
         debug("%s\n", "recv rs485 data error");
-        return -1;
+        stat = false;
+    }
+    else
+    {
+        stat = true;
     }
     // if (from_485_data[0] != to_485_data[0])
     // {
@@ -485,18 +491,36 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
     //     }
     // }
 
-    // 将数据存入临时缓存
-    for (int i = 0; i < ret - 5; i += 2)
+    if(stat)
     {
-        uint8To16 = (from_485_data[i + 3] << 8) |
-                    (from_485_data[i + 4] & 0xff);
-
-        if (curr_info->store_type == TYPE_VALVE_GROUP_DATA)
+        // 将数据存入临时缓存
+        for (int i = 0; i < ret - 5; i += 2)
         {
-            data_block[curr_info->id_addr].valve_group_data.push_back(
-                uint8To16);
+            uint8To16 = (from_485_data[i + 3] << 8) |
+                        (from_485_data[i + 4] & 0xff);
+
+            if (curr_info->store_type == TYPE_VALVE_GROUP_DATA)
+            {
+                data_block[curr_info->id_addr].valve_group_data.push_back(
+                    uint8To16);
+            }
         }
     }
+    else
+    {
+        // 将0存入临时缓存
+        for (int i = 0; i < ret - 5; i += 2)
+        {
+            uint8To16 = 0;
+
+            if (curr_info->store_type == TYPE_VALVE_GROUP_DATA)
+            {
+                data_block[curr_info->id_addr].valve_group_data.push_back(
+                    uint8To16);
+            }
+        }
+    }
+    
     return 0;
 }
 
@@ -1500,6 +1524,8 @@ int MultiTask::state_machine_operation(
 
     int ret = 0;
 
+    int j = 0;
+
     /* 保存允许出错的次数 */
     int err_num = 0;
 
@@ -1784,17 +1810,21 @@ int MultiTask::state_machine_operation(
             }
             else if (curr_info->store_type == TYPE_MANIFOLD_PRESSURE_1)
             {
-                if(i == get_config().manifold_1.add)
+                if(get_config().manifold_1.add == j)
                 {
-                    wellsite_info.manifold_pressure[0] = uint8To16;
+                    wellsite_info.manifold_pressure[0] = (uint8To16 * 0.0145 - 141.12)/1;
+                    debug("保存汇管1数据[%d]地址[%d]\n", wellsite_info.manifold_pressure[0], i);
                 }
+                j++;
             }
             else if(curr_info->store_type == TYPE_MANIFOLD_PRESSURE_2)
             {
-                if(i == get_config().manifold_1.add)
+                if(get_config().manifold_1.add == j)
                 {
-                    wellsite_info.manifold_pressure[1] = uint8To16;
+                    wellsite_info.manifold_pressure[1] = (uint8To16 * 0.0145 - 141.12)/1;
+                    debug("保存汇管2数据[%d]地址[%d]\n", wellsite_info.manifold_pressure[1], i);
                 }
+                j++;
             }
             else if (curr_info->store_type == TYPE_VALVE_GROUP_DATA)
             {
@@ -2529,15 +2559,21 @@ void MultiTask::thread_get_wellport_info()
                     to_db.wr_db[current_info.id_addr].oil_basic_data[53];
 
                 /* 故障时间 */
+                // wellsite_info.fault_info[2] = 
+                //     ((get_current_time().year - 2000) << 8) | 
+                //     (get_current_time().month & 0xff);
+                // wellsite_info.fault_info[3] = 
+                //     (get_current_time().day << 8) | 
+                //     (get_current_time().hour & 0xff);
+                // wellsite_info.fault_info[4] = 
+                //     (get_current_time().minute << 8) | 
+                //     (get_current_time().second & 0xff);
                 wellsite_info.fault_info[2] = 
-                    ((get_current_time().year - 2000) << 8) | 
-                    (get_current_time().month & 0xff);
+                    to_db.wr_db[current_info.id_addr].oil_basic_data[54];
                 wellsite_info.fault_info[3] = 
-                    (get_current_time().day << 8) | 
-                    (get_current_time().hour & 0xff);
+                    to_db.wr_db[current_info.id_addr].oil_basic_data[55];
                 wellsite_info.fault_info[4] = 
-                    (get_current_time().minute << 8) | 
-                    (get_current_time().second & 0xff);
+                    to_db.wr_db[current_info.id_addr].oil_basic_data[56];
             }
 
             /* 当前油井是否可以采集功图数据 */
@@ -2679,7 +2715,7 @@ void MultiTask::thread_get_wellport_info()
 
             if (ret < 0)
             {
-                current_info.phase = PHASE_START;
+                current_info.phase = PHASE_WELLSITE_RTU;
                 break;
             }
 
@@ -2715,7 +2751,7 @@ void MultiTask::thread_get_wellport_info()
 
             if (ret < 0)
             {
-                current_info.phase = PHASE_START;
+                current_info.phase = PHASE_WELLSITE_RTU;
                 break;
             }
 
@@ -2733,9 +2769,11 @@ void MultiTask::thread_get_wellport_info()
                 {
                     //TODO:当前配置在安控井口的汇管,默认直接去读取井口配置的AI
                     current_info.store_type = TYPE_MANIFOLD_PRESSURE_1;
-                    current_info.start_addr = get_config().manifold_1.add -1;
+                    current_info.start_addr = 0;
                     current_info.addr_len = 0x06;
                     current_info.func_code = 0x04;
+
+                    debug("%s\n", "开始采集汇管1数据");
 
                     ret = state_machine_operation(&current_info, to_db.wr_db);
 
@@ -2799,9 +2837,11 @@ void MultiTask::thread_get_wellport_info()
                 {
                     //TODO:当前配置在安特井口的汇管,默认直接去读取井口配置的AI
                     current_info.store_type = TYPE_MANIFOLD_PRESSURE_2;
-                    current_info.start_addr = get_config().manifold_2.add -1;
+                    current_info.start_addr = 0;
                     current_info.addr_len = 0x06;
                     current_info.func_code = 0x04;
+
+                    debug("%s\n", "开始采集汇管2数据");
 
                     ret = state_machine_operation(&current_info, to_db.wr_db);
 
@@ -2882,7 +2922,9 @@ void MultiTask::thread_get_wellport_info()
                to_db.wr_db[current_info.id_addr].wellsite_rtu[59] = 
                    wellsite_info.manifold_pressure[1];
 
-                debug("%s\n", "将汇管压力数据保存到井场主RTU寄存器表中");
+                debug("将汇管压力数据[%d, %d]保存到井场主RTU寄存器表中\n", 
+                      wellsite_info.manifold_pressure[0], 
+                      wellsite_info.manifold_pressure[1]);
 
                /* 注水井总的汇管压力 */
                to_db.wr_db[current_info.id_addr].wellsite_rtu[51] = 0;
