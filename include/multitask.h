@@ -137,9 +137,9 @@ struct state_machine_current_info
 struct data_block
 {
     uint8_t              id;                 /* 站号 */
-    std::vector<uint16_t>oil_basic_data;     /* 油井基础数据(包含功图基础数据部分) */
-    std::vector<uint16_t>ind_diagram;        /* 功图数据 */
-    std::vector<uint16_t>power_diagram;      /* 功率图数据 */
+    std::vector<uint16_t>oil_basic_data;     /* 油井基础数据 */
+    std::vector<uint16_t>ind_diagram;        /* 功图数据(包含40201~40210) */
+    std::vector<uint16_t>power_diagram;      /* 功率图数据(包含41411~41420) */
     std::vector<uint16_t>water_well_data;    /* 水源井数据 */
     std::vector<uint16_t>valve_group_data;   /* 阀组间原始数据 */
     std::vector<uint16_t>wellsite_rtu;       /* 井场RTU的数据 */
@@ -305,8 +305,10 @@ private:
     /* 用于指向分配的两个data_block数据区 */
     struct to_data_block
     {
-        struct data_block *wr_db;
-        struct data_block *rd_db;
+        struct data_block *wr_db; /* 指向写基础数据指针 */
+        struct data_block *rd_db; /* 指向写基础数据指针 */
+        struct data_block *wr_db_ind; /* 指向写功图数据指针 */
+        struct data_block *rd_db_ind; /* 指向读功图数据指针 */
     } to_db;
 
     /* xbee handler */

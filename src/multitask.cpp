@@ -329,7 +329,7 @@ int MultiTask::config_manage()
 
 
 int MultiTask::rs485(struct state_machine_current_info *curr_info,
-                     struct data_block                 *data_block)
+                     struct data_block           *data_block)
 {
     int crcCode = 0;
 
@@ -937,7 +937,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
         else if (get_config().well_info[id_addr].type == TYPE_OIL_WELL_DATA)
         {
             if ((tcp_data->start_addr >= 0) && 
-                (tcp_data->start_addr <= 199))
+                (tcp_data->start_addr < 200))
             {
                 dif = tcp_data->start_addr + tcp_data->len - 200;
 
@@ -963,35 +963,15 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                         to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
                 }
 
-                if ((dif > 0) && (dif <= 10))
+                if ((dif > 0) && (dif <= 200))
                 {
-                    /* 功图基础数据第一部分 */
-                    for (uint16_t i = 210; i < (210 + dif); i++)
-                    {
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
-                    }
-                }
-                else if (dif > 10)
-                {
-                    /* 功图基础数据第一部分 */
-                    for (uint16_t i = 210; i < (210 + 10); i++)
-                    {
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
-                    }
-
                     /* 功图数据 */
-                    for (uint16_t i = 0; i < (dif - 10); i++)
+                    for (uint16_t i = 0; i < (0 + dif); i++)
                     {
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].ind_diagram[i] >> 8);
+                            to_db.rd_db_ind[id_addr].ind_diagram[i] >> 8);
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].ind_diagram[i] & 0xff);
+                            to_db.rd_db_ind[id_addr].ind_diagram[i] & 0xff);
                     }
                 }
 
@@ -1000,50 +980,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                 
             }
             else if ((tcp_data->start_addr >= 200) && 
-                     (tcp_data->start_addr <= 209))
-            {
-                dif = tcp_data->start_addr + tcp_data->len - 210;
-
-                if (dif > 0)
-                {
-                    dif_len = tcp_data->len - dif;
-                }
-                else
-                {
-                    dif_len = tcp_data->len;
-                }
-
-                /* ###### 上锁 ###### */
-                m_rd_db.lock();
-
-                /* 功图基础数据第一部分已经准备好，可以读取并发给上位机 */
-                for (uint16_t i = tcp_data->start_addr + 10;
-                     i < (tcp_data->start_addr + 10 + dif_len); i++)
-                {
-                    to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
-                    to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
-                }
-
-                if (dif > 0)
-                {
-                    /* 功图数据 */
-                    for (uint16_t i = 0; i < dif; i++)
-                    {
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].ind_diagram[i] >> 8);
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].ind_diagram[i] & 0xff);
-                    }
-                }
-
-                /* ###### 解锁 ###### */
-                m_rd_db.unlock();
-                
-            }
-            else if ((tcp_data->start_addr >= 210) && 
-                     (tcp_data->start_addr <= 1009))
+                     (tcp_data->start_addr < 1010))
             {
                 dif = tcp_data->start_addr + tcp_data->len - 1010;
 
@@ -1059,42 +996,25 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                 /* ###### 上锁 ###### */
                 m_rd_db.lock();
 
-                /* 功图数据第已经准备好，可以读取并发给上位机 */
-                for (uint16_t i = tcp_data->start_addr - 210;
-                     i < (tcp_data->start_addr - 210 + dif_len); i++)
+                /* 功图已经准备好，可以读取并发给上位机 */
+                for (uint16_t i = tcp_data->start_addr - 200;
+                     i < (tcp_data->start_addr - 200 + dif_len); i++)
                 {
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].ind_diagram[i] >> 8);
+                        to_db.rd_db_ind[id_addr].ind_diagram[i] >> 8);
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].ind_diagram[i] & 0xff);
+                        to_db.rd_db_ind[id_addr].ind_diagram[i] & 0xff);
                 }
 
-                if ((dif > 0) && (dif <= 400))
+                if ((dif > 0) && (dif < 200))
                 {
                     /* 功率图数据 */
-                    for (uint16_t i = 0; i < (0 + dif); i++)
+                    for (uint16_t i = 10; i < (10 + dif); i++)
                     {
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].power_diagram[i] >> 8);
+                            to_db.rd_db_ind[id_addr].power_diagram[i] >> 8);
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].power_diagram[i] & 0xff);
-                    }
-                }
-                else 
-                {
-                    /* 功率图数据 */
-                    for (uint16_t i = 0; i < (0 + 400); i++)
-                    {
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].power_diagram[i] >> 8);
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].power_diagram[i] & 0xff);
-                    }
-                    /* 补零 */
-                    for (uint16_t i = 0; i < (dif - 10); i++)
-                    {
-                        to_tcp_frame.push_back(0);
-                        to_tcp_frame.push_back(0);
+                            to_db.rd_db_ind[id_addr].power_diagram[i] & 0xff);
                     }
                 }
 
@@ -1103,7 +1023,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                 
             }
             else if ((tcp_data->start_addr >= 1010) && 
-                     (tcp_data->start_addr <= 1409))
+                     (tcp_data->start_addr < 1410))
             {
                 dif = tcp_data->start_addr + tcp_data->len - 1410;
 
@@ -1120,37 +1040,28 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                 m_rd_db.lock();
 
                 /* 功率图数据第已经准备好，可以读取并发给上位机 */
-                for (uint16_t i = tcp_data->start_addr - 1010;
-                     i < (tcp_data->start_addr - 1010 + dif_len); i++)
+                for (uint16_t i = tcp_data->start_addr - 1000;
+                     i < (tcp_data->start_addr - 1000 + dif_len); i++)
                 {
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].power_diagram[i] >> 8);
+                        to_db.rd_db_ind[id_addr].power_diagram[i] >> 8);
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].power_diagram[i] & 0xff);
+                        to_db.rd_db_ind[id_addr].power_diagram[i] & 0xff);
                 }
 
                 if ((dif > 0) && (dif <= 10))
                 {
-                    /* 功图基础数据第二部分 */
-                    for (uint16_t i = 200; i < (200 + dif); i++)
+                    /* 功率图基础数据 */
+                    for (uint16_t i = 0; i < (0 + dif); i++)
                     {
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
+                            to_db.rd_db_ind[id_addr].power_diagram[i] >> 8);
                         to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
+                            to_db.rd_db_ind[id_addr].power_diagram[i] & 0xff);
                     }
                 }
                 else if (dif > 10)
                 {
-                    /* 功图基础数据第二部分 */
-                    for (uint16_t i = 200; i < (200 + 10); i++)
-                    {
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
-                        to_tcp_frame.push_back( \
-                            to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
-                    }
-
                     /* 补零 */
                     for (uint16_t i = 0; i < (dif - 10); i++)
                     {
@@ -1164,7 +1075,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                 
             }
             else if ((tcp_data->start_addr >= 1410) &&
-                     (tcp_data->start_addr <= 1419))
+                     (tcp_data->start_addr < 1420))
             {
                 dif = tcp_data->start_addr + tcp_data->len - 1420;
 
@@ -1181,13 +1092,13 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                 m_rd_db.lock();
 
                 /* 功图基础数据第二部分已经准备好，可以读取并发给上位机 */
-                for (uint16_t i = tcp_data->start_addr - 1210;
-                     i < (tcp_data->start_addr - 1210 + dif_len); i++)
+                for (uint16_t i = tcp_data->start_addr - 1410;
+                     i < (tcp_data->start_addr - 1410 + dif_len); i++)
                 {
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].oil_basic_data[i] >> 8);
+                        to_db.rd_db_ind[id_addr].power_diagram[i] >> 8);
                     to_tcp_frame.push_back( \
-                        to_db.rd_db[id_addr].oil_basic_data[i] & 0xff);
+                        to_db.rd_db_ind[id_addr].power_diagram[i] & 0xff);
                 }
 
                 /* ###### 解锁 ###### */
@@ -1202,27 +1113,6 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                     }
                 }
             }
-            // else if ((tcp_data->start_addr >= 210) &&
-            //          (tcp_data->start_addr <= 1409))
-            // {
-            //     dif = tcp_data->start_addr + tcp_data->len - 1410;
- 
-            //     if (dif <= 0)
-            //     {
-            //         dif = 0;
-            //     }
- 
-            //     debug("%s\n", "*******接收并发送功图数据*******");
- 
-            //     // TODO：此处并未像之前一般，对请求的数据长度做判断处理
-            //     if (to_xbee(tcp_data) < 0)
-            //     {
-            //         debug("%s\n", "*******发送功图数据失败*******");
-            //         return -1;
-            //     }
-            //     return 0;
-            // }
-
             else
             {
                 /* 请求读取的数据不在任意对应区间的，一律返回零 */
@@ -1660,26 +1550,6 @@ int MultiTask::state_machine_operation(
             {
                 for(int i = curr_info->start_addr; 
                         i < curr_info->start_addr + curr_info->addr_len; 
-                        i++)
-                {
-                    data_block[curr_info->id_addr].oil_basic_data[i] = 0;
-                }
-            }
-            else if((curr_info->start_addr >= 200) && 
-                    (curr_info->start_addr < 210))
-            {
-                for(int i = curr_info->start_addr + 10; 
-                        i < curr_info->start_addr + 10 + curr_info->addr_len; 
-                        i++)
-                {
-                    data_block[curr_info->id_addr].oil_basic_data[i] = 0;
-                }
-            }
-            else if((curr_info->start_addr >= 1410) && 
-                    (curr_info->start_addr < 1420))
-            {
-                for(int i = curr_info->start_addr - 1210; 
-                        i < curr_info->start_addr - 1210 + curr_info->addr_len; 
                         i++)
                 {
                     data_block[curr_info->id_addr].oil_basic_data[i] = 0;
@@ -2318,14 +2188,14 @@ void MultiTask::thread_init()
         {
         case 0x01: /* 油井 */
             data_block[i].cur_time_diagram = 0;
-            data_block[i].oil_basic_data.resize(220);
-            data_block[i].ind_diagram.resize(800);
-            data_block[i].power_diagram.resize(400);
+            data_block[i].oil_basic_data.resize(200);
+            data_block[i].ind_diagram.resize(810);
+            data_block[i].power_diagram.resize(410);
 
             data_block_2[i].cur_time_diagram = 0;
-            data_block_2[i].oil_basic_data.resize(220);
-            data_block_2[i].ind_diagram.resize(800);
-            data_block_2[i].power_diagram.resize(400);
+            data_block_2[i].oil_basic_data.resize(200);
+            data_block_2[i].ind_diagram.resize(810);
+            data_block_2[i].power_diagram.resize(410);
             break;
         case 0x02: /* 水井 */
             data_block[i].water_well_data.resize(70);
@@ -2354,6 +2224,8 @@ void MultiTask::thread_init()
     /* 初始化写指针指向data_block,读指针指向data_block_2 */
     to_db.wr_db = data_block;
     to_db.rd_db = data_block_2;
+    to_db.wr_db_ind = data_block;
+    to_db.rd_db_ind = data_block_2;
 }
 
 /**
@@ -2387,7 +2259,7 @@ void MultiTask::thread_get_wellport_info()
     double ai_current = 0;
 
     /* 纪录当前采集到的功图存放在第几个数据块中 */
-    struct data_block *ind_diagram_store_place = data_block_2;
+    //struct data_block *ind_diagram_store_place = data_block_2;
 
     /* 保存每次读取油井基础数据的地址长度 */
     uint16_t oil_basic_addr_len[] =
@@ -2473,11 +2345,13 @@ void MultiTask::thread_get_wellport_info()
             /* 100s后并且从第一个站号开始读取数据时，开始读取功图数据 */
             if((time(nullptr) - start_time > 100) && 
                (current_info.id_addr == 0) && 
-               (to_db.wr_db != ind_diagram_store_place))
+               (to_db.wr_db != to_db.wr_db_ind))
             {
                 is_re_record_time = true;
                 is_collect_diagram = true;
-                ind_diagram_store_place = to_db.wr_db;
+                to_db.wr_db_ind = to_db.wr_db;
+                to_db.rd_db_ind = to_db.rd_db;
+                //ind_diagram_store_place = to_db.wr_db;
             }
 
             /* 判断当前的站号的类型，并执行对应的程序 */
@@ -2518,20 +2392,10 @@ void MultiTask::thread_get_wellport_info()
             current_info.start_addr = 0;
             current_info.store_type = TYPE_OIL_WELL_DATA;
 
-            /* 功图基础数据第二部分存储在油井基础数据的第200位(包含)开始，共10位 */
-            /* 功图基础数据第一部分存储在油井基础数据的第210位(包含)开始，共10位 */
-            for (int i = 0; i < 7; i++)
+            for (int i = 0; i < 6; i++)
             {
-                if (i == 6)
-                {
-                    current_info.start_addr = 0x0582;
-                    current_info.addr_len = 0x0a;
-                }
-                else
-                {
-                    current_info.start_addr += oil_basic_addr_len[i];
-                    current_info.addr_len = oil_basic_addr_len[i + 1];
-                }
+                current_info.start_addr += oil_basic_addr_len[i];
+                current_info.addr_len = oil_basic_addr_len[i + 1];
 
                 ret = state_machine_operation(&current_info, to_db.wr_db);
 
@@ -2580,27 +2444,27 @@ void MultiTask::thread_get_wellport_info()
             if(is_collect_diagram)
             {
                 debug("%s\n", "开始采集功图数据########");
-                /* 采集功图基础数据第一部分 */
-                /* 功图基础数据第一部分存储在油井基础数据的第210位(包含)开始，共10位 */
+                /* 采集功图基础数据 */
+                current_info.store_type = TYPE_INDICATION_DIAGRAM;
+                to_db.wr_db[current_info.id_addr].ind_diagram.clear();
+
+                /* 功图基础数据存储在功图数据的第0～9位 */
                 current_info.start_addr = 0xc8;
                 current_info.addr_len = 0xa;
-                ret = state_machine_operation(&current_info, to_db.wr_db);
-                to_db.wr_db[current_info.id_addr].ind_diagram.clear();
-                to_db.wr_db[current_info.id_addr].power_diagram.clear();
-
+                ret = state_machine_operation(&current_info, to_db.wr_db_ind);
+                
                 /* 只有当采集的功图基础数据无误时，才开始采功图数据 */
                 if(ret > 0)
                 {
                     /* 采集功图数据 */
                     current_info.start_addr = 0xd2;
-                    current_info.store_type = TYPE_INDICATION_DIAGRAM;
-
+                    
                     for(int i = 0; i < 20; i++)
                     {
                         current_info.start_addr += ind_diagram_addr_len[i];
                         
                         current_info.addr_len = ind_diagram_addr_len[i + 1];
-                        ret = state_machine_operation(&current_info, to_db.wr_db);
+                        ret = state_machine_operation(&current_info, to_db.wr_db_ind);
                         if ((ret == -2) || (ret == -3))
                         {
                             /* 功图前200个点或后200个点采集失败，直接跳出 */
@@ -2612,16 +2476,30 @@ void MultiTask::thread_get_wellport_info()
                             break;
                         }
                     }
+                }
 
+                debug("%s\n", "开始采集功率图数据########");
+                /* 采集功率图基础数据 */
+                current_info.store_type = TYPE_POWER_DIAGRAM;
+                to_db.wr_db[current_info.id_addr].power_diagram.clear();
+
+                /* 功率图基础数据存储在功率图数据的第0～9位 */
+                current_info.start_addr = 0x0582;
+                current_info.addr_len = 0xa;
+                ret = state_machine_operation(&current_info, to_db.wr_db_ind);
+
+                /* 只有当采集的功率图基础数据无误时，才开始采功率图数据 */
+                if(ret > 0)
+                {
                     /* 采集功率图数据 */
                     current_info.start_addr = 0x3f2;
-                    current_info.store_type = TYPE_POWER_DIAGRAM;
+                    
                     for(int i = 0; i < 10; i++)
                     {
                         current_info.start_addr += power_diagram_addr_len[i];
                         
                         current_info.addr_len = power_diagram_addr_len[i + 1];
-                        ret = state_machine_operation(&current_info, to_db.wr_db);
+                        ret = state_machine_operation(&current_info, to_db.wr_db_ind);
                         if ((ret == -4) || (ret == -5))
                         {
                             /* 功率图前200个点或后200个点采集失败，直接跳出 */
@@ -2633,12 +2511,11 @@ void MultiTask::thread_get_wellport_info()
                             break;
                         }
                     }
-                    if (ret == 0)
-                    {
-                        current_info.phase = PHASE_START;
-                        break;
-                    }
-                
+                    // if (ret == 0)
+                    // {
+                    //     current_info.phase = PHASE_START;
+                    //     break;
+                    // }
                 }
             }
 
