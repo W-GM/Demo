@@ -36,52 +36,8 @@ int MultiTask::config_manage()
     int string_len = 0;
     int num = 0;
 
-    string  option[] = {
-        "VERSION",
-        "RTU_NAME",
-        "PORT",
-        "IP",
-        "GATEWAY",
-        "MAC",  /* 当前未配置 */
-        "MASK",
-        "MANIFOLD_PRESSURE_1",
-        "MANIFOLD_PRESSURE_2",
-        "MANIFOLD_RANGE_1",
-        "MANIFOLD_RANGE_2",
-        "XBEE_ID",
-        "XBEE_SC",
-        "XBEE_AO",
-        "XBEE_CE",
-        "WELLHEAD_1",
-        "WELLHEAD_2",
-        "WELLHEAD_3",
-        "WELLHEAD_4",
-        "WELLHEAD_5",
-        "WELLHEAD_6",
-        "WELLHEAD_7",
-        "WELLHEAD_8",
-        "WELLHEAD_9",
-        "WELLHEAD_10",
-        "WELLHEAD_11",
-        "WELLHEAD_12",
-        "WELLHEAD_13",
-        "WELLHEAD_14",
-        "WELLHEAD_15",
-        "WELLHEAD_16",
-        "VALVE_GROUP_125",
-        "VALVE_GROUP_126",
-        "VALVE_GROUP_127",
-        "VALVE_GROUP_128",
-    };
-
-#ifdef ARMCQ
-    const char *path = "/home/config/cq_config.xml";
-#else // ifdef ARMCQ
-    const char *path = "./config/cq_config.xml";
-#endif // ifdef ARMCQ
-
     /* ---------- 打开并读取配置文件 ----------- */
-    if (config.LoadFile(path) != XML_SUCCESS)
+    if (config.LoadFile(config_path) != XML_SUCCESS)
     {
         /* 读取文件失败 */
         printf("load config file error !\n");
@@ -104,7 +60,7 @@ int MultiTask::config_manage()
         if ((config_option =
              config_label->FirstChildElement(option[i].c_str())) == nullptr)
         {
-            debug("%s\n", "load or read xml file error\n");
+            debug("%s\n", "load or read xml file error");
             return -1;
         }
 
@@ -132,7 +88,7 @@ int MultiTask::config_manage()
             if((string_len % 2) == 1)
             {
                 config_info.reg_value[num] = 
-                    config_info.version.c_str()[string_len - 1];
+                    config_info.version.c_str()[string_len - 1] << 8;
             }
 
             break;
@@ -158,7 +114,7 @@ int MultiTask::config_manage()
             if((string_len % 2) == 1)
             {
                 config_info.reg_value[num + 4] = 
-                    config_info.rtu_name.c_str()[string_len - 1];
+                    config_info.rtu_name.c_str()[string_len - 1] << 8;
             }
 
             break;
@@ -324,6 +280,88 @@ int MultiTask::config_manage()
         config_info.well_max_num = j;
     }
 
+    //config.Clear();
+    return 0;
+}
+
+int MultiTask::set_config(uint16_t *config_data, int start_addr, int len)
+{
+    char data1[2] = {0};
+    char data2[4] = {0};
+    char data4[8] = {0};
+    char data10[20] = {0};
+    
+    /* 用于保存每一个配置项对应的寄存器表里的起始地址 */
+    int addr[] = {00, 04, 24, 25, 29, 33, 37, 38, 39, 40, 41, 
+                  45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 
+                  56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66,
+                  67};
+
+    /* 读取标签中的配置项 */
+    for(int i = start_addr; i < len; i++)
+    {
+        if ((config_option =
+             config_label->FirstChildElement(option[i].c_str())) == nullptr)
+        {
+            debug("%s\n", "加载配置文件中的配置项失败");
+            return -1;
+        }
+        
+        switch (i)
+        {
+        case 0: /* 固件版本 */
+        case 3: /* ip地址 */
+        case 4: /* 网关 */
+        case 6: /* 子网掩码 */
+        case 11: /* 16位的PAN ID */
+            for(int j = 0; j < 4; j++)
+            {
+                data4[j * 2] = config_data[j + addr[i]] >> 8;
+                data4[j * 2 + 1] = config_data[j + addr[i]] & 0xff;
+            }
+            config_option->SetText(data4);
+            break;
+        case 1: /* rtu名称 */
+            for(int j = 0; j < 10; j++)
+            {
+                data10[j * 2] = config_data[j + addr[i]] >> 8;
+                data10[j * 2 + 1] = config_data[j + addr[i]] & 0xff;
+            }
+            config_option->SetText(data10);
+            break;
+        case 2: /* 端口号 */
+        case 12: /* SC 7fff */
+            sprintf(data4, "%d", config_data[addr[i]]);
+            config_option->SetText(data4);
+            break;
+        case 7: /* 汇管压力配置1 */
+        case 8: /* 汇管压力配置2 */
+        case 9: /* 汇管1量程 */
+        case 10: /* 汇管2量程 */
+            sprintf(data2, "%x", config_data[addr[i]]);
+            config_option->SetText(data2);
+            break;
+        case 13: /* AO 0:<不接收ack>  1:<接收ack> */
+        case 14: /* CE */
+            sprintf(data1, "%d", config_data[addr[i]]);
+            config_option->SetText(data1);
+            break;
+        default:
+            /* 井口与阀组信息 */
+            if((i >= 15) && (i < 35))
+            {
+                sprintf(data1, "%d", config_data[addr[i]]);
+                config_option->SetText(data1);
+            }
+            else
+            {
+                debug("设置配置文件中的配置项失败,且配置项为>>", i, 1);
+                return -1;
+            }
+            break;
+        }
+    }
+
     return 0;
 }
 
@@ -406,8 +444,6 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
     while (err_num < 2)
     {
         /* 发送数据 */
-
-        // write(rs485_info.fd, to_485_data, 8);
     #ifdef ARMCQ
         usart_send_data(rs485_info.fd, to_485_data, 8);
     #else // ifdef ARMCQ
@@ -421,7 +457,6 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
 
         /* 等待接收数据 */
 
-        // ret = read(rs485_info.fd, from_485_data, sizeof(from_485_data));
     #ifdef ARMCQ
         ret = usart_rev_data(rs485_info.fd, from_485_data);
     #else // ifdef ARMCQ
@@ -523,6 +558,182 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
     
     return 0;
 }
+
+/**
+ * @brief 给连接到rs485的设备发送modbus RTU写寄存器指令
+ * 
+ * @param tcp_data 接收上位机发送来的数据帧信息
+ * @return int 成功返回0；失败返回-1
+ */
+int MultiTask::rs485_write(struct tcp_data * tcp_data)
+{
+    /* 用于组装发送给rs485的数据帧 */
+    uint8_t to_485_data[50] = { 0 };
+
+    /* 用于接收rs485的数据 */
+    uint8_t from_485_data[10] = { 0 };
+
+    /* 用于组装发送给上位机的数据帧 */
+    uint8_t to_tcp_frame[10] = {0};
+
+    /* 用于保存crc校验后的值 */
+    uint16_t crc_code = 0;
+
+    /* 用于保存要发送的modbus RTU数据帧长度 */
+    int to_rtu_frame_len = 0;
+
+    /* 用于保存要发送的modbus TCP数据帧长度 */
+    int to_tcp_frame_len = 0;
+
+    /* 保存允许出错的次数 */
+    int err_num = 0;
+
+    /* 用于保存函数返回值 */
+    int ret = 0;
+
+    /* 组装站号 */
+    switch (tcp_data->id)
+    {
+    case 128:
+        to_485_data[0] = 16;
+        break;
+    case 127:
+        to_485_data[0] = 15;
+        break;
+    case 126:
+        to_485_data[0] = 14;
+        break;
+    case 125:
+        to_485_data[0] = 13;
+        break;
+    default:
+        to_485_data[0] = tcp_data->id;
+        break;
+    }
+
+    /* 组装功能码 */
+    to_485_data[1] = tcp_data->func_code;
+    /* 组装起始地址 */
+    to_485_data[2] = tcp_data->start_addr >> 8;
+    to_485_data[3] = tcp_data->start_addr & 0xff;
+
+    /* 写单个寄存器 */
+    if(tcp_data->func_code == 0x06)
+    {
+        /* 组装要写入寄存器的值 */
+        to_485_data[4] = tcp_data->set_val >> 8;
+        to_485_data[5] = tcp_data->set_val & 0xff;
+        /* 组装CRC校验 */
+        crc_code = crc16(to_485_data, 6);
+        to_485_data[6] = crc_code >> 8;
+        to_485_data[7] = crc_code & 0xff;
+        /* 要发送的帧长度 */
+        to_rtu_frame_len = 8;
+    }
+
+    /* 写多个寄存器 */
+    else if(tcp_data->func_code == 0x10)
+    {
+        /* 组装要写入寄存器的个数 */
+        to_485_data[4] = tcp_data->len >> 8;
+        to_485_data[5] = tcp_data->len & 0xff;
+        /* 组装要写入数据的总字节数 */
+        to_485_data[6] = tcp_data->byte_count;
+        /* 组装要写入寄存器的值 */
+        for(int i = 0; i < tcp_data->len; i++)
+        {
+            to_485_data[7 + i*2] = tcp_data->value[i] >> 8;
+            to_485_data[8 + i*2] = tcp_data->value[i] & 0xff;
+        }
+        /* 组装CRC校验 */
+        crc_code = crc16(to_485_data, (7 + tcp_data->len * 2));
+        to_485_data[7 + tcp_data->len * 2] = crc_code >> 8;
+        to_485_data[8 + tcp_data->len * 2] = crc_code & 0xff;
+        /* 要发送的帧长度 */
+        to_rtu_frame_len = 9 + tcp_data->len * 2;
+    }
+
+    /* 打印 */
+    debug_custom("发送的rs485数据帧>>", to_485_data, to_rtu_frame_len);
+    
+    /* 发送数据 */
+#ifdef ARMCQ
+    usart_send_data(rs485_info.fd, to_485_data, to_rtu_frame_len);
+#else // ifdef ARMCQ
+    uart_485->Write(to_485_data, to_rtu_frame_len);
+#endif // ifdef ARMCQ
+
+    /* 延迟20ms */
+    usleep(20000);
+
+    /* 打印 */
+    debug_custom("接收的rs485数据帧>>", nullptr, 0);
+    /* 接收数据 */
+#ifdef ARMCQ
+    ret = usart_rev_data(rs485_info.fd, from_485_data);
+#else // ifdef ARMCQ
+    ret = uart_485->Read(from_485_data, 256, 1000);
+    /* 打印 */
+    debug_custom(nullptr, from_485_data, strlen((const char *)from_485_data));
+#endif // ifdef ARMCQ
+
+    if((ret <= 0) || 
+       ((from_485_data[0] != tcp_data->id) && 
+        ((from_485_data[1] != tcp_data->func_code) || 
+         (from_485_data[1] != (tcp_data->func_code + 0x80)))) || 
+       (crc16_check(from_485_data, 8) < 0))
+    {
+        debug_custom("接收rs485数据帧出错或超时>>", nullptr, 0);
+        return ret;
+    }
+
+    /* 开始组装modbus TCP帧 */
+    to_tcp_frame[0] = tcp_data->frame_header[0];
+    to_tcp_frame[1] = tcp_data->frame_header[1];
+    to_tcp_frame[2] = tcp_data->frame_header[2];
+    to_tcp_frame[3] = tcp_data->frame_header[3];
+    if(from_485_data[1] == tcp_data->func_code)
+    {
+        to_tcp_frame[4] = 0;
+        to_tcp_frame[5] = 6;
+        for(int i = 0; i < 6; i++)
+        {
+            to_tcp_frame[6 + i] = from_485_data[i];
+        }
+
+        to_tcp_frame_len = 12;
+    }
+    else if(from_485_data[1] == (tcp_data->func_code + 0x80))
+    {
+        to_tcp_frame[4] = 0;
+        to_tcp_frame[5] = 3;
+        for(int i = 0; i < 3; i++)
+        {
+            to_tcp_frame[6 + i] = from_485_data[i];
+        }
+
+        to_tcp_frame_len = 9;
+    }
+    else
+    {
+        debug_custom("接收错误站号>>", from_485_data, 1);
+        ret -1;
+    }
+
+    /* 发送给上位机 */
+    if (send(ctx->s, to_tcp_frame, to_tcp_frame_len,
+             MSG_NOSIGNAL) < 0)
+    {
+        debug("%s\n",
+              " modbus TCP send error");
+        return -1;
+    }
+    debug("--- %s ---\n",
+          " Modbus TCP has been successfully sent");
+
+    return 0;
+}
+
 
 #if 0
 
@@ -879,6 +1090,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
         return -1;
     }
 
+    /* 用于组装发送给上位机的modbus TCP数据帧 */
     /* 组装帧头 */
     to_tcp_frame.push_back(tcp_data->frame_header[0]);
     to_tcp_frame.push_back(tcp_data->frame_header[1]);
@@ -887,7 +1099,7 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
     to_tcp_frame.push_back((tcp_data->len * 2 + 3) >> 8);
     to_tcp_frame.push_back((tcp_data->len * 2 + 3) & 0xff);
 
-    /* 加站号，功能码 */
+    /* 组装站号，功能码 */
     to_tcp_frame.push_back(tcp_data->id);
     to_tcp_frame.push_back(tcp_data->func_code);
 
@@ -1319,7 +1531,15 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
             {
                 config_info.reg_value[tcp_data->start_addr] = tcp_data->set_val;
                 config_info.reg_value[68] = 1;
-                config_label->SetText("a");
+
+                if(set_config(config_info.reg_value, ) < 0)
+                {
+                    
+                    return -1;
+                }
+
+
+                //TODO：将要写的数据写入配置文件里
             }
             else if(tcp_data->start_addr == 69)
             {
@@ -1330,17 +1550,22 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
                 }
             }
         }
-        else if(get_config().well_info[id_addr].type == 0x31)
+        else if(get_config().well_info[id_addr].type == CON_VALVE_485)
         {
             if(((tcp_data->start_addr % 100) == 2) && 
                ((((tcp_data->start_addr - 2) / 100) > 0) && 
                 (((tcp_data->start_addr - 2) / 100) <= to_db.rd_db[id_addr].injection_well_num)))
             {
-                
+                if(rs485_write(tcp_data) < 0)
+                {
+                    /* 写寄存器命令失败时退出程序，即不给上位机回消息 */
+                    return -1;
+                }
+
+                return 0;
             }
-            
         }
-        else
+        else if(get_config().well_info[id_addr].type == CON_VALVE_ZIGBEE)
         {
             // if (to_xbee(tcp_data) < 0)
             // {
@@ -1348,14 +1573,60 @@ int MultiTask::sel_data_to_tcp(struct tcp_data *tcp_data)
             //     return -1;
             // }
         }
+        else
+        {
+            return -1;
+        }
 
-        return 0;
     }
 
     /* 请求写多个寄存器 */
     else if (tcp_data->func_code == 0x10)
     {
-        
+        if(tcp_data->id == 222)
+        {
+            if((tcp_data->start_addr >= 0) && 
+               (tcp_data->start_addr <= 67))
+            {
+                if((tcp_data->start_addr + tcp_data->len) < 69)
+                {
+                    for(int i = tcp_data->start_addr; i < tcp_data->len; i++)
+                    {
+                        config_info.reg_value[i] = tcp_data->value[i];
+                        config_info.reg_value[68] = 1;
+                        config_label->SetText("a");
+                    }
+                }
+                //TODO：将要写的数据写入配置文件里
+            }
+        }
+        else if(get_config().well_info[id_addr].type == CON_VALVE_485)
+        {
+            if(((tcp_data->start_addr % 100) == 2) && 
+               ((((tcp_data->start_addr - 2) / 100) > 0) && 
+                (((tcp_data->start_addr - 2) / 100) <= to_db.rd_db[id_addr].injection_well_num)))
+            {
+                if(rs485_write(tcp_data) < 0)
+                {
+                    /* 写寄存器命令失败时退出程序，即不给上位机回消息 */
+                    return -1;
+                }
+            }
+        }
+        else if(get_config().well_info[id_addr].type == CON_VALVE_ZIGBEE)
+        {
+            // if (to_xbee(tcp_data) < 0)
+            // {
+            //     debug("%s\n", "*******发送写单个寄存器指令失败*******");
+            //     return -1;
+            // }
+        }
+        else
+        {
+            return -1;
+        }
+
+        return 0;
     }
     else
     {
@@ -1989,7 +2260,7 @@ void MultiTask::thread_init()
     /* -----------------初始化xbee模块------------------- */
 
     /* 接收到的AT命令ACK */
-    uint8_t recv_ack[9] = { 0 };
+    uint8_t recv_ack[10] = { 0 };
 
     /* 初始化的AT命令 */
     uint8_t uint_at_command[9][20];
@@ -2015,14 +2286,14 @@ void MultiTask::thread_init()
     /* 如果发送失败,重发 */
     for (int i = 0; i < 3; i++)
     {
-        memset(recv_ack, 0, 9);
+        memset(recv_ack, 0, 10);
 
         for(int j = 0; j < 2; j++)
         {
             /* 进入AT命令模式 */
             xbee_ser->Write(uint_at_command[0], 3);
 
-            if (xbee_ser->Read(recv_ack, 10, 1000) <= 0)
+            if (xbee_ser->Read(recv_ack, 10, 3000) <= 0)
             {
                 debug("%s\n", "AT command read error or timeout");
                 continue;

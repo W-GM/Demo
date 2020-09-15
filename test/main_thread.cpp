@@ -48,7 +48,6 @@ int main()
     /* 保存 */
     // doc.SaveFile("/home/wgm/wgm/PROJECT/CQ_PROJECT/build/myconfig.xml");
 
-
     signal(SIGINT, close_sigint);
 
 

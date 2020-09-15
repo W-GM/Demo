@@ -1,10 +1,20 @@
+/**
+ * @file xbee_test.cpp
+ * @author wgm (you@domain.com)
+ * @brief 
+ * @version 0.1
+ * @date 2020-09-14
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
 #include <iostream>
 #include <string.h>
 #include "xbee.h"
 #include "uart.h"
 #include "xbee_op.h"
 
-#define ARMCQ
+//#define ARMCQ
 
 int main(int argc, const char *argv[])
 {
@@ -14,6 +24,10 @@ int main(int argc, const char *argv[])
     char setatcmd[4] = {0};     // AT 命令
     char  setvale[10] = { 0 }; // AT 命令值
     uint8_t  setvalelen = 0;      // AT 命令值长度
+
+    uint8_t buffer[10] = {0};
+    uint8_t re_buffer[15] = {0};
+    int num = 0;
 
     char xbee_data[256] = {0}; // 用于保存发送或接收的数据
     int xbee_len = 0; // 用于保存数据长度
@@ -129,6 +143,50 @@ int main(int argc, const char *argv[])
             xbeeRemoteAtCmd(*xbee_handler, remoteAddr, (uint8_t *)setatcmd, (uint8_t *)setvale, setvalelen);
         }
     }
+    else if(arg1 == "AT")
+    {
+        if(argc == 3)
+        {
+            if(arg2 == "+++")
+            {
+                buffer[0] = 0x2b;
+                buffer[1] = 0x2b;
+                buffer[2] = 0x2b;
+                xbee_ser->Write(buffer, 3);
+                ret = xbee_ser->Read(re_buffer, sizeof(re_buffer), 1000);
+                if(ret <= 0)
+                {
+                    printf("读取失败或超时\n");
+                }
+                else
+                {
+                    printf("recv >> %s\n", re_buffer);
+                }
+            }
+            else
+            {
+                buffer[0] = 'A';
+                buffer[1] = 'T';
+                while (arg2[num] != '\0')
+                {
+                    buffer[num + 2] = arg2[num];
+                    num++;
+                }
+                buffer[num + 2] = 0x0d;
+
+                xbee_ser->Write(buffer, num + 3);
+                ret = xbee_ser->Read(re_buffer, sizeof(re_buffer), 1000);
+                if(ret <= 0)
+                {
+                    printf("读取失败或超时\n");
+                }
+                else
+                {
+                    printf("recv >> %s\n", re_buffer);
+                }
+            }
+        }
+    }
     else
     {
         if(argc == 2)
@@ -142,18 +200,25 @@ int main(int argc, const char *argv[])
         {
             strcpy(setatcmd, arg1.c_str());
             ret = strtol(arg2.c_str(), &str, 16);
-            memcpy(setvale, &ret, sizeof(long));
-            
-            for(int i = 1; i <= 8; i++)
+            if(ret == 0)
             {
-                m = (ret >> (64 - i * 8)) & 0xff;
-                if(m != 0)
-                {
-                    setvale[n] = m;
-                    n++;
-                }
+                setvalelen = 1;
             }
-            setvalelen = n;
+            else
+            {
+                memcpy(setvale, &ret, sizeof(long));
+            
+                for(int i = 1; i <= 8; i++)
+                {
+                    m = (ret >> (64 - i * 8)) & 0xff;
+                    if(m != 0)
+                    {
+                        setvale[n] = m;
+                        n++;
+                    }
+                }
+                setvalelen = n;
+            }
 
             // 发送AT Command
             xbeeAtCmd(*xbee_handler, (uint8_t *)setatcmd, (uint8_t *)setvale, setvalelen);

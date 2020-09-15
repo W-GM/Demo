@@ -32,7 +32,7 @@
 using namespace tinyxml2;
 
 /* 允许监听的最大个数 */
-#define NB_CONNECTON 5
+#define NB_CONNECTON 8
 
 #define ARMCQ
 
@@ -56,9 +56,11 @@ enum manufactures
  */
 enum communication_connect_type
 {
-    CON_NO,       /* 无连接 */
-    CON_WIRED,    /* 有线连接 */
-    CON_WIRELESS, /* 无线连接 */
+    CON_NO,                 /* 无连接 */
+    CON_WIRED,              /* 有线连接 */
+    CON_WIRELESS,           /* 无线连接 */
+    CON_VALVE_485 = 0x31,   /* 配置的阀组通过RS485连接 */
+    CON_VALVE_ZIGBEE = 0x32 /* 配置的阀组通过ZigBee连接 */
 };
 
 /**
@@ -108,6 +110,51 @@ enum error_mun
     ERROR_XBEE_RECV_TIMEOUT, /* zigbee接收超时 */
     ERROR_XBEE_RECV_DATA     /* zigbee接收数据错误 */
 };
+
+/* 用于保存配置项名称 */
+string  option[] = {
+    "VERSION",
+    "RTU_NAME",
+    "PORT",
+    "IP",
+    "GATEWAY",
+    "MAC",  /* 当前未配置 */
+    "MASK",
+    "MANIFOLD_PRESSURE_1",
+    "MANIFOLD_PRESSURE_2",
+    "MANIFOLD_RANGE_1",
+    "MANIFOLD_RANGE_2",
+    "XBEE_ID",
+    "XBEE_SC",
+    "XBEE_AO",
+    "XBEE_CE",
+    "WELLHEAD_1",
+    "WELLHEAD_2",
+    "WELLHEAD_3",
+    "WELLHEAD_4",
+    "WELLHEAD_5",
+    "WELLHEAD_6",
+    "WELLHEAD_7",
+    "WELLHEAD_8",
+    "WELLHEAD_9",
+    "WELLHEAD_10",
+    "WELLHEAD_11",
+    "WELLHEAD_12",
+    "WELLHEAD_13",
+    "WELLHEAD_14",
+    "WELLHEAD_15",
+    "WELLHEAD_16",
+    "VALVE_GROUP_125",
+    "VALVE_GROUP_126",
+    "VALVE_GROUP_127",
+    "VALVE_GROUP_128",
+};
+
+#ifdef ARMCQ
+    const char *config_path = "/home/config/cq_config.xml";
+#else // ifdef ARMCQ
+    const char *config_path = "./config/cq_config.xml";
+#endif // ifdef ARMCQ
 
 /**
  * @brief 用于保存状态机的当前状态信息
@@ -406,18 +453,20 @@ public:
 
     int get_tcp_config(const char * value, char * get_value, int addr, int time);
     
+    int config_manage();
 
+    int set_config(uint16_t *config_data, int start_addr, int len);
 
-    int                config_manage();
+    int rs485(struct state_machine_current_info *curr_info,
+              struct data_block                 *data_block);
 
-    int                rs485(struct state_machine_current_info *curr_info,
-                             struct data_block                 *data_block);
+    int rs485_write(struct tcp_data * tcp_data);
 
-    int                to_xbee(struct tcp_data *tcp_data);
+    int to_xbee(struct tcp_data *tcp_data);
 
-    int                sel_data_to_tcp(struct tcp_data *tcp_data);
+    int sel_data_to_tcp(struct tcp_data *tcp_data);
 
-    int                state_machine_operation(
+    int state_machine_operation(
         struct state_machine_current_info *curr_info,
         struct data_block                 *data_block);
 };

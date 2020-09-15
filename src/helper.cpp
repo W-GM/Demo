@@ -1,6 +1,13 @@
 #include "helper.h"
+#include "constants.h"
 
-/* crc 计算 */
+/**
+ * @brief 用于计算某一帧的crc校验值
+ * 
+ * @param buffer 要校验的数据帧
+ * @param buffer_length 要校验的数据帧长度
+ * @return uint16_t 返回校验值
+ */
 uint16_t crc16(uint8_t *buffer, uint16_t buffer_length)
 {
     uint8_t crc_hi = 0xFF; /* high CRC byte initialized */
@@ -15,6 +22,30 @@ uint16_t crc16(uint8_t *buffer, uint16_t buffer_length)
     }
 
     return crc_hi << 8 | crc_lo;
+}
+
+/**
+ * @brief 用于校验modbus RTU数据帧
+ * 
+ * @param buffer 要校验的数据帧
+ * @param buffer_len 数据帧长度
+ * @return int 校验成功返回0；失败返回-1
+ */
+int crc16_check(uint8_t *buffer, uint16_t buffer_len)
+{
+    /* 用于保存经过计算后得到的crc校验结果 */
+    uint16_t crc_result = crc16(buffer, buffer_len - 2);
+    /* 用于保存当前帧自带的crc校验值 */
+    uint16_t crc_original = (buffer[buffer_len - 2] << 8) | 
+                            (buffer[buffer_len - 1] & 0xff);
+    if(crc_result == crc_original)
+    {
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
 }
 
 /**
@@ -70,4 +101,31 @@ struct currtime get_current_time()
     currtime.second = t->tm_sec;
 
     return currtime;
+}
+
+/**
+ * @brief 自定义debug打印语句
+ * 
+ * @param time 要打印的数据长度
+ * @param data 要打印的数据
+ * @param explain 解释说明
+ */
+void debug_custom(const char *explain, uint8_t *data, int time)
+{
+    if(explain != nullptr)
+    {
+        debug("%s\n", explain);
+    }
+
+    if(data != nullptr)
+    {
+        for (int i = 0; i < time; i++)
+        {
+            debug("%02x ", data[i]);
+        }
+        
+        debug("%s\n", "");
+    }
+    
+    
 }
