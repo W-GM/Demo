@@ -13,13 +13,13 @@
     <!--汇管压力配置-->
     <!--高8位（高4位：0为未配置，1为通过井场AI配置，2为通过ZigBee配置；低4位：0~5对应连接到AI的第几个引脚上）-->
     <!--低8位（配置在第几个站号上）-->
-    <MANIFOLD_PRESSURE_1>2000</MANIFOLD_PRESSURE_1> 
+    <MANIFOLD_PRESSURE_1>1000</MANIFOLD_PRESSURE_1> 
     <MANIFOLD_PRESSURE_2>0</MANIFOLD_PRESSURE_2>
     <MANIFOLD_RANGE_1>6</MANIFOLD_RANGE_1> <!--汇管量程,十六进制-->
     <MANIFOLD_RANGE_2>0</MANIFOLD_RANGE_2>
 
     <!--zigbee配置-->
-    <XBEE_ID>4567</XBEE_ID>
+    <XBEE_ID>1010</XBEE_ID>
     <XBEE_SC>7fff</XBEE_SC>
     <XBEE_AO>1</XBEE_AO>
     <XBEE_CE>1</XBEE_CE>

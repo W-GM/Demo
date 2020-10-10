@@ -93,7 +93,7 @@ int main(int argc, const char *argv[])
     if (xbee_ser->Open("/dev/ttymxc6", 9600) < 0)
 #else // ifdef ARMCQ
 
-    if (xbee_ser->Open("/dev/ttyUSB0", 9600) < 0)
+    if (xbee_ser->Open("/dev/ttyUSB1", 9600) < 0)
 #endif // ifdef ARMCQ
     {
         fprintf(stderr, "serial_open(): %s\n", xbee_ser->errmsg());
