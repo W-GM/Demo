@@ -273,6 +273,15 @@ int uart::Open(const char *path, uint32_t baudrate)
     return open_advanced(path, baudrate, 8, PARITY_NONE, 1, false, false);
 }
 
+int uart::Open(const char     *path, 
+               uint32_t        baudrate, 
+               serial_parity_t parity, 
+               uint32_t        databit, 
+               uint32_t        stopbit)
+{
+    return open_advanced(path, baudrate, databit, parity, stopbit, false, false);
+}
+
 int uart::open_advanced(const char     *path,
                         uint32_t        baudrate,
                         unsigned int    databits,

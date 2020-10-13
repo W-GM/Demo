@@ -1,6 +1,7 @@
 PATH_SRC=./src/
 PATH_INCLUDE=./include/ 
 PATH_INC_LIB=./include/library/
+PATH_INC_CONFIG=./include/config/
 PATH_TEST=./test/
 PATH_LIB=./lib/
 PATH_BUILD=./build/
@@ -11,12 +12,12 @@ PATH_INC_LINUX=/home/wgm/文档/硬件资料/米尔/04-Source/MYiR-iMX-Linux/
 
 all:
 	g++ -g -DDEBUG -std=c++11 -Wall \
-	-I$(PATH_INCLUDE) -I$(PATH_INC_LIB) -I$(PATH_INC_LINUX) \
+	-I$(PATH_INCLUDE) -I$(PATH_INC_LIB) -I$(PATH_INC_CONFIG) -I$(PATH_INC_LINUX) \
 	$(PATH_SRC)multitask.cpp $(PATH_SRC)uart.cpp $(PATH_SRC)xbee_op.cpp \
 	$(PATH_SRC)xbee_request.cpp $(PATH_SRC)xbee.cpp $(PATH_SRC)xbee_response.cpp \
 	$(PATH_SRC)helper.cpp $(PATH_SRC)sqlite_helper.cpp $(PATH_SRC)i2c.c \
 	$(PATH_SRC)spi.c $(PATH_SRC)rs485.c \
-	$(PATH_SRC_CONFIG)tinyxml2.cpp \
+	$(PATH_SRC_CONFIG)* \
 	$(PATH_TEST)main_thread.cpp \
 	-lpthread -lmodbus -lsqlite3 \
 	-o $(PATH_BUILD)cq_main
@@ -86,6 +87,13 @@ xbee-arm:
 	$(PATH_SRC)xbee_request.cpp $(PATH_SRC)xbee.cpp $(PATH_SRC)xbee_response.cpp \
 	$(PATH_TEST)xbee_test.cpp \
 	-o $(PATH_BUILD)xbee-test-arm
+
+json:
+	g++ -g -std=c++11 -Wall \
+	-I$(PATH_INCLUDE) -I$(PATH_INC_CONFIG) \
+	$(PATH_SRC_CONFIG)cJSON.cpp  $(PATH_SRC_CONFIG)CJsonObject.cpp $(PATH_SRC_CONFIG)Config.cpp   \
+	$(PATH_TEST)json-test.cpp \
+	-o $(PATH_BUILD)json-test
 
 ttt:
 	g++ -g -DDEBUG -DCURTIME -Wall \

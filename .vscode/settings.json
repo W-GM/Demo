@@ -47,6 +47,11 @@
         "streambuf": "cpp",
         "thread": "cpp",
         "typeinfo": "cpp",
-        "*.tt": "cpp"
+        "*.tt": "cpp",
+        "bitset": "cpp",
+        "list": "cpp",
+        "iterator": "cpp",
+        "map": "cpp",
+        "regex": "cpp"
     }
 }

@@ -21,6 +21,157 @@
 #include <stdio.h>
 #include "helper.h"
 
+int MultiTask::get_jconfig()
+{
+    using namespace gcfg;
+
+#ifdef ARMCQ
+    const char *jconfig_path = "/home/config/myconfig.json";
+#else
+    const char *jconfig_path = "./config/myconfig.json";
+#endif
+
+    int wellport = 0;
+    int wellport_num = 0;
+
+    /* 创建json对象 */
+    jconfig = ConfigSingle::getInstance();
+
+    if(jconfig == nullptr)
+    {
+        cout << "create config error" << endl;
+        return -1;
+    }
+
+    if(jconfig->RefreshCfg(jconfig_path) == -1)
+    {
+        cout << "open config file error" << endl;
+        return -1;
+    }
+
+    /* 固件版本 */
+    config_info.version = jconfig->GetVersion();
+
+    /* rtu名称 */
+    config_info.rtu_name = jconfig->GetRtuName();
+
+    /* 端口号 */
+    config_info.port = jconfig->GetNetPort();
+
+    /* ip地址 */
+    config_info.ip = jconfig->GetNetIP();
+
+    /* 网关 */
+    config_info.gateway = jconfig->GetNetGateway();
+
+    /* mac地址 */
+    //TODO：后期如无用处，可删
+    config_info.mac = jconfig->GetMacAddr();
+
+    /* 子网掩码 */
+    config_info.mask = jconfig->GetNetMask();
+
+    /* 汇管压力配置1 */
+    config_info.manifold_1.type = jconfig->GetMainFoldCfg(0).cfg >> 12;
+    config_info.manifold_1.add = (jconfig->GetMainFoldCfg(0).cfg >> 8) & 0xf;
+    config_info.manifold_1.id = jconfig->GetMainFoldCfg(0).cfg & 0xff;
+    config_info.manifold_1.range = jconfig->GetMainFoldCfg(0).rng;
+
+    /* 汇管压力配置2 */
+    config_info.manifold_2.type = jconfig->GetMainFoldCfg(1).cfg >> 12;
+    config_info.manifold_2.add = (jconfig->GetMainFoldCfg(1).cfg >> 8) & 0xf;
+    config_info.manifold_2.id = jconfig->GetMainFoldCfg(1).cfg & 0xff;
+    config_info.manifold_2.range = jconfig->GetMainFoldCfg(1).rng;
+
+    /* zigbe配置 */
+    config_info.xbee_id = jconfig->GetZIGCFG().id;
+    config_info.xbee_ce = jconfig->GetZIGCFG().ce;
+    config_info.xbee_ao = jconfig->GetZIGCFG().ao;
+    config_info.xbee_sc = jconfig->GetZIGCFG().sc;
+
+    /* DI寄存器配置 */
+    for(int i = 0; i < 8; i++)
+    {
+        config_info.di_reg[i] = jconfig->GetDIReg(i);
+    }
+
+    /* DO寄存器配置 */
+    for(int i = 0; i < 8; i++)
+    {
+        config_info.do_reg[i] = jconfig->GetDOReg(i);
+    }
+
+    /* AI寄存器配置 */
+    for(int i = 0; i < 10; i++)
+    {
+        config_info.ai_cfg[i].reg = jconfig->GetAIReg(i);
+        config_info.ai_cfg[i].rng = jconfig->GetAIRng(i);
+    }
+
+    /* 网口配置 */
+    for(int i = 0; i < 2; i++)
+    {
+        config_info.eth_cfg[i].ip = jconfig->GetEth(i).ip;
+        config_info.eth_cfg[i].mask = jconfig->GetEth(i).mask;
+        config_info.eth_cfg[i].gateway = jconfig->GetEth(i).gateway;
+    }
+
+    /* wifi配置 */
+    config_info.wifi_cfg.ssid = jconfig->GetWifi().ssid;
+    config_info.wifi_cfg.password = jconfig->GetWifi().passwd;
+
+    /* 串口(232,485)配置  0->232;1->485;2->485 */
+    for(int i = 0; i < 3; i++)
+    {
+        config_info.serial_cfg[i].baudrate = jconfig->GetSerialCfg(i).baudrate;
+        config_info.serial_cfg[i].parity = jconfig->GetSerialCfg(i).parity;
+        config_info.serial_cfg[i].databit = jconfig->GetSerialCfg(i).databit;
+        config_info.serial_cfg[i].stopbit = jconfig->GetSerialCfg(i).stopbit;
+    }
+
+    memset(config_info.well_info, 0, sizeof(config_info.well_info));
+
+    /* 油井，水井，阀组配置 */
+    for(int i = 0; i < 20; i++)
+    {
+        wellport = jconfig->GetWellPortCfgs()[i];
+
+        if(wellport)
+        {
+            if(i >=16) /* 阀组 */
+            {
+                config_info.well_info[wellport_num].id = i - 16 + 125;
+            }
+            else /* 油井和水井 */
+            {
+                config_info.well_info[wellport_num].id = i;
+            }
+            
+            config_info.well_info[wellport_num].type = wellport;
+            config_info.well_info[wellport_num].addr = 0xffff;
+
+            wellport_num++;
+        }
+    }
+
+    /* 添加站号为128的井场主RTU */
+    if(config_info.well_info[wellport_num - 1].id != 128)
+    {
+        config_info.well_info[wellport_num].id = 128;
+        config_info.well_info[wellport_num].type = 0;
+        config_info.well_max_num = wellport_num + 1;
+    }
+    else
+    {
+        /* 添加配置的井口和阀组的总个数，包含未配置阀组的128站号 */
+        config_info.well_max_num = wellport_num;
+    }
+
+    return 0;
+}
+
+
+#ifdef test
 /**
  * @brief 读取配置文件
  *
@@ -58,7 +209,7 @@ int MultiTask::config_manage()
     for(int i = 0; i < 15; i++)
     {
         if ((config_option =
-             config_label->FirstChildElement(option[i].c_str())) == nullptr)
+             config_label->FirstChildElement(option_cfg[i].c_str())) == nullptr)
         {
             debug("%s\n", "load or read xml file error");
             return -1;
@@ -239,7 +390,7 @@ int MultiTask::config_manage()
     for(int i = 15; i < 35; i++)
     {
         if ((config_option =
-                 config_label->FirstChildElement(option[i].c_str())) == nullptr)
+                 config_label->FirstChildElement(option_cfg[i].c_str())) == nullptr)
         {
             debug("%s\n", "load or read xml file error\n");
             return -1;
@@ -301,7 +452,7 @@ int MultiTask::set_config(uint16_t *config_data, int start_addr, int len)
     for(int i = start_addr; i < len; i++)
     {
         if ((config_option =
-             config_label->FirstChildElement(option[i].c_str())) == nullptr)
+             config_label->FirstChildElement(option_cfg[i].c_str())) == nullptr)
         {
             debug("%s\n", "加载配置文件中的配置项失败");
             return -1;
@@ -445,7 +596,7 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
     {
         /* 发送数据 */
     #ifdef ARMCQ
-        usart_send_data(rs485_info.fd, to_485_data, 8);
+        usart_send_data(rs485_info[0].fd, to_485_data, 8);
     #else // ifdef ARMCQ
         uart_485->Write(to_485_data, 8);
     #endif // ifdef ARMCQ
@@ -458,7 +609,7 @@ int MultiTask::rs485(struct state_machine_current_info *curr_info,
         /* 等待接收数据 */
 
     #ifdef ARMCQ
-        ret = usart_rev_data(rs485_info.fd, from_485_data);
+        ret = usart_rev_data(rs485_info[0].fd, from_485_data);
     #else // ifdef ARMCQ
         ret = uart_485->Read(from_485_data, 256, 1000);
 
@@ -658,7 +809,7 @@ int MultiTask::rs485_write(struct tcp_data * tcp_data)
     
     /* 发送数据 */
 #ifdef ARMCQ
-    usart_send_data(rs485_info.fd, to_485_data, to_rtu_frame_len);
+    usart_send_data(rs485_info[0].fd, to_485_data, to_rtu_frame_len);
 #else // ifdef ARMCQ
     uart_485->Write(to_485_data, to_rtu_frame_len);
 #endif // ifdef ARMCQ
@@ -670,7 +821,7 @@ int MultiTask::rs485_write(struct tcp_data * tcp_data)
     debug_custom("接收的rs485数据帧>>", nullptr, 0);
     /* 接收数据 */
 #ifdef ARMCQ
-    ret = usart_rev_data(rs485_info.fd, from_485_data);
+    ret = usart_rev_data(rs485_info[0].fd, from_485_data);
 #else // ifdef ARMCQ
     ret = uart_485->Read(from_485_data, 256, 1000);
     /* 打印 */
@@ -733,7 +884,6 @@ int MultiTask::rs485_write(struct tcp_data * tcp_data)
 
     return 0;
 }
-
 
 #if 0
 
@@ -1988,8 +2138,7 @@ int MultiTask::state_machine_operation(
     return ret;
 }
 
-
-
+#endif //test
 
 
 /**
@@ -1999,7 +2148,14 @@ int MultiTask::state_machine_operation(
 MultiTask::MultiTask()
 {
     /* ---------读取配置文件中的配置项--------- */
+#ifdef test
     if (config_manage() < 0)
+    {
+        is_error = ERROR_CONFIG;
+        return;
+    }
+#endif //test
+    if(get_jconfig() < 0)
     {
         is_error = ERROR_CONFIG;
         return;
@@ -2043,6 +2199,35 @@ MultiTask::MultiTask()
 
     /* -------------初始化DI，DO，AI的配置--------------- */
 
+    /* DI,DO(I2C)初始化 */
+    i2c_D = i2c_init("/dev/i2c-2", 0x74, 0xff, 0x03);
+    if (i2c_D == nullptr)
+    {
+        is_error = ERROR_I2C;
+        return;
+    }
+    else
+    {
+        debug("%s\n", "DI,DO初始化成功");
+    }
+
+    /* AI(SPI)初始化 */
+    spi_ai.spi = spi_init("/dev/spidev0.0");
+    if (spi_ai.spi == nullptr)
+    {
+        is_error = ERROR_SPI;
+        return;
+    }
+    else
+    {
+        debug("%s\n", "AI初始化成功");
+    }
+
+    memset(spi_ai.val, 0, 2);
+    memset(spi_ai.buf_rx, 0, 2);
+    memset(spi_ai.val, 0, 16);
+
+#ifdef replace
     // TODO：当前AI仅可用作连接汇管，后期再做进一步考量
     // TODO：当前DI，DO并未做实际的配置，后期做进一步的考量
     DI_AI_DO.en_di = false;
@@ -2091,16 +2276,200 @@ MultiTask::MultiTask()
 
         debug("%s\n", "SPI初始化成功");
     }
+#endif //replace
 
-    /* ------------------ rs485初始化 ------------------ */
+    /* ------------------ rs232配置 ------------------ */
+    #ifdef ARMCQ
+    serial_parity_t rs232_parity;
+    if(config_info.serial_cfg[0].parity == "None")
+    {
+        rs232_parity = PARITY_NONE;
+    }
+    else if(config_info.serial_cfg[0].parity == "Odd")
+    {
+        rs232_parity = PARITY_ODD;
+    }
+    else if(config_info.serial_cfg[0].parity == "Even")
+    {
+        rs232_parity = PARITY_EVEN;
+    }
+
+    if(uart_232->Open("/dev/ttymxc6", 
+                      atoi(config_info.serial_cfg[0].baudrate.c_str()),
+                      rs232_parity, 
+                      config_info.serial_cfg[0].databit, 
+                      config_info.serial_cfg[0].stopbit) < 0)
+    {
+        is_error = ERROR_RS232;
+        return;
+    }
+    #endif
+
+    /* ------------------ rs485 0口初始化 ------------------ */
+#ifdef ARMCQ
+    uint16_t rs485_0_parity;
+    if(config_info.serial_cfg[1].parity == "None")
+    {
+        rs485_0_parity = 1;
+    }
+    else if(config_info.serial_cfg[1].parity == "Odd")
+    {
+        rs485_0_parity = 2;
+    }
+    else if(config_info.serial_cfg[1].parity == "Even")
+    {
+        rs485_0_parity = 3;
+    }
+    rs485_info[0].fd = 
+        usart_init(0, 
+                   atoi(config_info.serial_cfg[1].baudrate.c_str()), 
+                   config_info.serial_cfg[1].databit, 
+                   config_info.serial_cfg[1].stopbit,
+                   rs485_0_parity);
+
+    if (rs485_info[0].fd < 0)
+    {
+        is_error = ERROR_485_0;
+        return;
+    }
+#else // ifdef ARMCQ
+    uart_485 = new uart();
+    if (uart_485 == nullptr)
+    {
+        // fprintf(stderr, "uart_485 new error\n");
+        is_error = ERROR_485_0;
+        return;
+    }
+    /* 打开串口 */
+    if (uart_485->Open("/dev/ttyUSB1", 9600) < 0)
+    {
+        // fprintf(stderr, "serial_open(): %s\n", uart_485->errmsg());
+        is_error = ERROR_485_0;
+        return;
+    }
+#endif // ifdef ARM_CQ
+
+     /* ------------------ rs485 1口初始化 ------------------ */
+#ifdef ARMCQ
+    uint16_t rs485_1_parity;
+    if(config_info.serial_cfg[2].parity == "None")
+    {
+        rs485_1_parity = 1;
+    }
+    else if(config_info.serial_cfg[2].parity == "Odd")
+    {
+        rs485_1_parity = 2;
+    }
+    else if(config_info.serial_cfg[2].parity == "Even")
+    {
+        rs485_1_parity = 3;
+    }
+    rs485_info[1].fd = 
+        usart_init(0, 
+                   atoi(config_info.serial_cfg[2].baudrate.c_str()), 
+                   config_info.serial_cfg[2].databit, 
+                   config_info.serial_cfg[2].stopbit,
+                   rs485_0_parity);
+
+    if (rs485_info[1].fd < 0)
+    {
+        is_error = ERROR_485_1;
+        return;
+    }
+#endif 
+
+    /* ------------------ 网口配置 ------------------ */
+#ifdef ARMCQ
+    /* eth0配置 */
+    /* 设置IP和子网掩码 */
+    std::string ip;
+    ip += "ifconfig eth0 ";
+    ip += config_info.eth_cfg[0].ip;
+    ip += " netmask ";
+    ip += config_info.eth_cfg[0].mask;
+    system(ip.c_str());
+
+    /* 设置网关 */
+    std::string gw;
+    gw += "route add default gw ";
+    gw += config_info.eth_cfg[0].gateway;
+    gw += " dev eth0";
+    system(gw.c_str());
+
+    /* eth1配置 */
+    /* 设置Mac地址 */
+    std::string mac;
+    mac += "ifconfig eth1 hw ether 00.c9.";
+    mac += config_info.eth_cfg[1].ip;
+    replace(mac.begin(),mac.end(),'.',':');
+    system(mac.c_str());
+
+    /* 启动网卡1 */
+    system("ifconfig eth1 up");
+
+    /* 设置IP和子网掩码 */
+    std::string ip;
+    ip += "ifconfig eth1 ";
+    ip += config_info.eth_cfg[1].ip;
+    ip += " netmask ";
+    ip += config_info.eth_cfg[1].mask;
+    system(ip.c_str());
+
+    /* 设置网关 */
+    std::string gw;
+    gw += "route add default gw ";
+    gw += config_info.eth_cfg[1].gateway;
+    gw += " dev eth1";
+    system(gw.c_str());
+#endif // ifdef ARMCQ
+
+    /* ------------------ wifi配置 ------------------ */
+    //TODO：待完善
+
+    /* ------------------ xbee配置 ------------------ */
+    const char * xbee_error_type[] = {"未成功设置SC", 
+                                      "未成功设置为AP模式", 
+                                      "未成功设置CE",
+                                      "未成功设置AO",
+                                      "未成功设置ID",
+                                      "未成功保存设置",
+                                      "未成功退出命令行模式"};
+    
+    /* 接收到的AT命令ACK */
+    uint8_t recv_ack[10] = { 0 };
+
+    /* 初始化的AT命令 */
+    uint8_t uint_at_command[8][20];
+
+    for (int i = 0; i < 8; i++)
+    {
+        memset(uint_at_command[i], 0, 20);
+    }
+    string atsc = "ATSC" + config_info.xbee_ao + "\r";
+    string atce = "ATCE" + config_info.xbee_ce + "\r";
+    string atao = "ATAO" + config_info.xbee_ao + "\r";
+    string atid = "ATID" + config_info.xbee_id + "\r";
+    strcpy((char *)uint_at_command[0], "+++");
+    strcpy((char *)uint_at_command[1], atsc.c_str());
+    strcpy((char *)uint_at_command[2], "ATAP1\r");
+    strcpy((char *)uint_at_command[3], atce.c_str());
+    strcpy((char *)uint_at_command[4], atao.c_str());
+    strcpy((char *)uint_at_command[5], atid.c_str());
+    strcpy((char *)uint_at_command[6], "ATWR\r");
+    strcpy((char *)uint_at_command[7], "ATCN\r");
+
+    //TODO：当前进度2020-10-13-18:03
+
+
+#ifdef replace
     for(int i = 0; i < get_config().well_max_num; i++)
     {
         if ((get_config().well_info[i].type & 0xf) == CON_WIRED)
         {
         #ifdef ARMCQ
-            rs485_info.fd = usart_init(0, 9600, 8, 1, 1);
+            rs485_info[0].fd = usart_init(0, 9600, 8, 1, 1);
 
-            if (rs485_info.fd < 0)
+            if (rs485_info[0].fd < 0)
             {
                 is_error = ERROR_485;
                 return;
@@ -2127,7 +2496,7 @@ MultiTask::MultiTask()
         break;
         }
     }
-
+#endif // replace
     /* ------------ 初始化sqlite3 ------------ */
 #ifdef SQL
     sql_handler = new sqlControl();
@@ -2202,8 +2571,8 @@ MultiTask::MultiTask()
 MultiTask::~MultiTask()
 {
     /* restore the old configuration */
-    tcsetattr(rs485_info.fd, TCSANOW, &rs485_info.oldtio);
-    close(rs485_info.fd);
+    tcsetattr(rs485_info[0].fd, TCSANOW, &rs485_info[0].oldtio);
+    close(rs485_info[0].fd);
 
     // free(tcp_data.value);
 
@@ -2270,8 +2639,8 @@ void MultiTask::thread_init()
         memset(uint_at_command[i], 0, 20);
     }
     string atsc = "ATSC" + get_config().xbee_sc + "\r";
-    string atce = "ATCE" + to_string(get_config().xbee_ce) + "\r";
-    string atao = "ATAO" + to_string(get_config().xbee_ao) + "\r";
+    string atce = "ATCE" + get_config().xbee_ce + "\r";
+    string atao = "ATAO" + get_config().xbee_ao + "\r";
     string atid = "ATID" + get_config().xbee_id + "\r";
     strcpy((char *)uint_at_command[0], "+++");
     strcpy((char *)uint_at_command[1], "ATRE\r");
@@ -2498,6 +2867,9 @@ void MultiTask::thread_init()
     to_db.wr_db_ind = data_block;
     to_db.rd_db_ind = data_block_2;
 }
+
+
+#ifdef test
 
 /**
  * @brief 获取井口数据线程
@@ -3704,3 +4076,6 @@ int MultiTask::get_tcp_config(const char * value, char * get_value, int addr, in
     
     return ++addr;
 }
+
+
+#endif // test

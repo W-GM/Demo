@@ -45,6 +45,12 @@ public:
     int Open(
         const char *path,
         uint32_t    baudrate);
+    int Open(
+        const char     *path, 
+        uint32_t        baudrate, 
+        serial_parity_t parity, 
+        uint32_t        databit, 
+        uint32_t        stopbit);
     int Read(
         uint8_t *buf,
         size_t   len,

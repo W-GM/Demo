@@ -1,0 +1,127 @@
+{
+    "Version": "1.1.1",
+    "RtuName": "281",
+    "NetPort": 502,
+    "NetIP": "11.11.11.22",
+    "NetGageway": "11.11.11.254",
+    "NetMac": "12:35:00:78:00:20",
+    "NetMask": "255.255.255.0",
+    "MainFold": [
+        {
+            "MainFoldCfg": 4096,
+            "MainFoldRng": 6
+        },
+        {
+            "MainFoldCfg": 9478,
+            "MainFoldRng": 0
+        }
+    ],
+    "ZIGBEE": {
+        "XBEE_ID": "1010",
+        "XBEE_SC": "7fff",
+        "XBEE_AO": "1",
+        "XBEE_CE": "1"
+    },
+    "DIREG": [
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+    ],
+    "DOREG": [
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+    ],
+    "AIREG": [
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+    ],
+    "AIRNG": [
+        6,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ],
+    "Eth": [
+        {
+            "ip": "11.11.11.2",
+            "mask": "255.255.255.0",
+            "gateway": "11.11.11.254"
+        },
+        {
+            "ip": "11.11.11.22",
+            "mask": "255.255.255.0",
+            "gateway": "11.11.11.254"
+        }
+    ],
+    "Wifi": {
+        "ssid": "root",
+        "passwd": "123456"
+    },
+    "Serial": [
+        {
+            "baudrate": "115200",
+            "parity": "None",
+            "databit": 8,
+            "stopbit": 1
+        },
+        {
+            "baudrate": "9600",
+            "parity": "Odd",
+            "databit": 8,
+            "stopbit": 1
+        },
+        {
+            "baudrate": "9600",
+            "parity": "Even",
+            "databit": 8,
+            "stopbit": 1
+        }
+    ],
+    "WellPort": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ]
+}

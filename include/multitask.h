@@ -26,6 +26,7 @@
 #include <algorithm> /* 用于实现string中的某个字符替换成新的字符 */
 
 #include "config/tinyxml2.h"
+#include "config/Config.h"
 
 #include "modbus-private.h"
 #include "rs485.h"
@@ -34,7 +35,7 @@ using namespace tinyxml2;
 /* 允许监听的最大个数 */
 #define NB_CONNECTON 8
 
-#define ARMCQ
+//#define ARMCQ
 
 //#define ANTE_AI
 
@@ -104,15 +105,20 @@ enum error_mun
     ERROR_XBEE,   /* 初始化xbee失败 */
     ERROR_I2C,    /* 初始化i2c失败 */
     ERROR_SPI,    /* 初始化spi失败 */
-    ERROR_485,    /* 初始化485失败 */
+    ERROR_485_0,  /* 初始化485 0口失败 */
     ERROR_SQL,    /* 初始化数据库失败 */
 
     ERROR_XBEE_RECV_TIMEOUT, /* zigbee接收超时 */
-    ERROR_XBEE_RECV_DATA     /* zigbee接收数据错误 */
+    ERROR_XBEE_RECV_DATA,    /* zigbee接收数据错误 */
+
+    ERROR_232,   /* 初始化rs232失败 */
+    ERROR_485_1, /* 初始化485 1口失败 */
+    
 };
 
+#ifdef test
 /* 用于保存配置项名称 */
-string  option[] = {
+string  option_cfg[] = {
     "VERSION",
     "RTU_NAME",
     "PORT",
@@ -149,12 +155,7 @@ string  option[] = {
     "VALVE_GROUP_127",
     "VALVE_GROUP_128",
 };
-
-#ifdef ARMCQ
-    const char *config_path = "/home/config/cq_config.xml";
-#else // ifdef ARMCQ
-    const char *config_path = "./config/cq_config.xml";
-#endif // ifdef ARMCQ
+#endif //test
 
 /**
  * @brief 用于保存状态机的当前状态信息
@@ -236,10 +237,10 @@ struct config_info
         uint16_t range; /* 量程 */
     } manifold_1, manifold_2;
 
-    string   xbee_id;   /* 16位的PAN ID */
-    string   xbee_sc;   /* 7fff */
-    uint16_t xbee_ao;   /* 0:<不接收ack>  1:<接收ack> */
-    uint16_t xbee_ce;   /* 0:<路由器>  1:<协调器> */
+    string xbee_id;   /* 16位的PAN ID */
+    string xbee_sc;   /* 7fff */
+    string xbee_ao;   /* 0:<不接收ack>  1:<接收ack> */
+    string xbee_ce;   /* 0:<路由器>  1:<协调器> */
 
     /* 井口的配置信息 */
     struct well_info
@@ -252,6 +253,39 @@ struct config_info
 
     /* 配置的井口和阀组的个数 */
     int well_max_num;
+
+    /* DI寄存器配置 */
+    int di_reg[8];
+
+    /* DO寄存器配置 */
+    int do_reg[8];
+
+    /* AI寄存器配置 */
+    struct ai_cfg{
+        int reg;
+        int rng;
+    }ai_cfg[10];
+
+    /* 网口配置 */
+    struct eth_cfg{
+        string ip;
+        string mask;
+        string gateway;
+    }eth_cfg[2];
+
+    /* wifi配置 */
+    struct wifi_cfg{
+        string ssid;
+        string password;
+    }wifi_cfg;
+
+    /* 串口(232,485)配置  0->232;1->485;2->485 */
+    struct serial_cfg{
+        string baudrate;
+        string parity;
+        int databit;
+        int stopbit;
+    }serial_cfg[3];
 
     /* 自定义的与上位机间通信的配置寄存器信息，对应站号为222 */
     uint16_t reg_value[100];
@@ -290,7 +324,7 @@ private:
     {
         int            fd;
         struct termios oldtio;
-    } rs485_info;
+    } rs485_info[2];
 
     /* 数据库表名 */
     struct sql_tab_name
@@ -376,6 +410,9 @@ private:
     /* 用于在电脑上运行rs485 */
     uart *uart_485 = nullptr;
 
+    /* 用于初始化rs232 */
+    uart *uart_232 = nullptr;
+
 
     /* ----------------------配置项---------------------- */
     /* configure */
@@ -385,6 +422,9 @@ private:
 
     /* 用于保存从配置项文件中得到的配置信息 */
     struct config_info config_info;
+
+    /* new JSON (wgm-2020-10-12) */
+    gcfg::ConfigSingle *jconfig = nullptr;
 
     /*---------------------互斥量和条件变量---------------*/
 
@@ -453,6 +493,8 @@ public:
 
     int get_tcp_config(const char * value, char * get_value, int addr, int time);
     
+    int get_jconfig();
+
     int config_manage();
 
     int set_config(uint16_t *config_data, int start_addr, int len);
