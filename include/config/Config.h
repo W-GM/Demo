@@ -47,7 +47,7 @@ typedef struct
 {
     unsigned int cfg;
     unsigned int rng;
-} MainFold_S;
+} ManiFold_S;
 
 namespace gcfg {
 class ConfigSingle {
@@ -124,11 +124,11 @@ public:
     void                   SetDOStatus(char status);
     std::vector<float>     GetAIValues();
 
-    MainFold_S             GetMainFoldCfg(int index);
-    std::vector<MainFold_S>GetMainFoldCfgs();
-    void                   SetMainFoldCfg(int        index,
-                                          MainFold_S cfg);
-    void                   SetMainFoldCfgs(std::vector<MainFold_S>cfgs);
+    ManiFold_S             GetManiFoldCfg(int index);
+    std::vector<ManiFold_S>GetManiFoldCfgs();
+    void                   SetManiFoldCfg(int        index,
+                                          ManiFold_S cfg);
+    void                   SetManiFoldCfgs(std::vector<ManiFold_S>cfgs);
 
     int                    GetWellPortCfg(int index);
     std::vector<int>       GetWellPortCfgs();

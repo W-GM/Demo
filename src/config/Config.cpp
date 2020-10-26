@@ -518,43 +518,43 @@ std::vector<float>ConfigSingle::GetAIValues()
     return temp;
 }
 
-MainFold_S ConfigSingle::GetMainFoldCfg(int index)
+ManiFold_S ConfigSingle::GetManiFoldCfg(int index)
 {
-    MainFold_S temp;
+    ManiFold_S temp;
 
-    oJson["MainFold"][index].Get("MainFoldCfg", temp.cfg);
-    oJson["MainFold"][index].Get("MainFoldRng", temp.rng);
+    oJson["ManiFold"][index].Get("ManiFoldCfg", temp.cfg);
+    oJson["ManiFold"][index].Get("ManiFoldRng", temp.rng);
     return temp;
 }
 
-std::vector<MainFold_S>ConfigSingle::GetMainFoldCfgs()
+std::vector<ManiFold_S>ConfigSingle::GetManiFoldCfgs()
 {
-    std::vector<MainFold_S> temp;
-    MainFold_S t;
+    std::vector<ManiFold_S> temp;
+    ManiFold_S t;
 
     for (int i = 0; i < 2; i++)
     {
-        oJson["MainFold"][i].Get("MainFoldCfg", t.cfg);
-        oJson["MainFold"][i].Get("MainFoldRng", t.rng);
+        oJson["ManiFold"][i].Get("ManiFoldCfg", t.cfg);
+        oJson["ManiFold"][i].Get("ManiFoldRng", t.rng);
         temp.push_back(t);
     }
     return temp;
 }
 
-void ConfigSingle::SetMainFoldCfg(int index, MainFold_S p)
+void ConfigSingle::SetManiFoldCfg(int index, ManiFold_S p)
 {
-    oJson["MainFold"][index].Replace("MainFoldCfg", p.cfg);
-    oJson["MainFold"][index].Replace("MainFoldRng", p.rng);
+    oJson["ManiFold"][index].Replace("ManiFoldCfg", p.cfg);
+    oJson["ManiFold"][index].Replace("ManiFoldRng", p.rng);
 }
 
-void ConfigSingle::SetMainFoldCfgs(std::vector<MainFold_S>cfgs)
+void ConfigSingle::SetManiFoldCfgs(std::vector<ManiFold_S>cfgs)
 {
     assert(cfgs.size() == 2);
 
     for (int i = 0; i < 2; i++)
     {
-        oJson["MainFold"][i].Replace("MainFoldCfg", cfgs[i].cfg);
-        oJson["MainFold"][i].Replace("MainFoldRng", cfgs[i].rng);
+        oJson["ManiFold"][i].Replace("ManiFoldCfg", cfgs[i].cfg);
+        oJson["ManiFold"][i].Replace("ManiFoldRng", cfgs[i].rng);
     }
 }
 

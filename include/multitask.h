@@ -35,33 +35,44 @@ using namespace tinyxml2;
 /* 允许监听的最大个数 */
 #define NB_CONNECTON 8
 
-//#define ARMCQ
+// #define ARMCQ
 
-//#define ANTE_AI
+// #define ANTE_AI
 
 /**
  * @brief 厂家名称
- * 
+ *
  */
 enum manufactures
 {
-    ANKONG = 100,  /* 安控 */
+    ANKONG  = 100, /* 安控 */
     KAISHAN = 200, /* 凯山 */
-    ANTE = 300,    /* 安特 */
-    JINGSHI = 400  /* 金时 */
+    ANTE    = 300, /* 安特 */
+    JINGSHI = 400, /* 金时 */
+    OTHER   = 500,
 };
 
 /**
  * @brief 通讯连接方式
  *
  */
-enum communication_connect_type
+enum connect_type
 {
-    CON_NO,                 /* 无连接 */
-    CON_WIRED,              /* 有线连接 */
-    CON_WIRELESS,           /* 无线连接 */
-    CON_VALVE_485 = 0x31,   /* 配置的阀组通过RS485连接 */
-    CON_VALVE_ZIGBEE = 0x32 /* 配置的阀组通过ZigBee连接 */
+    CON_NO,                  /* 无连接 */
+    CON_WIRED,               /* 有线连接 */
+    CON_WIRELESS,            /* 无线连接 */
+    CON_VALVE_485    = 0x31, /* 配置的阀组通过RS485连接 */
+    CON_VALVE_ZIGBEE = 0x32  /* 配置的阀组通过ZigBee连接 */
+};
+
+/**
+ * @brief 数据通信的方式
+ *
+ */
+enum communication__type
+{
+    COMM_XBEE, /* 通过zigbee进行数据通信 */
+    COMM_485, /* 通过RS485进行数据通信 */
 };
 
 /**
@@ -79,19 +90,30 @@ enum state_machine
 };
 
 /**
- * @brief 当前所存储的数据类型表
+ * @brief 站号类型
+ * 
+ */
+enum id_type
+{
+    ID_TYPE_OIL,   /* 油井 */
+    ID_TYPE_WATER, /* 水井 */
+    ID_TYPE_VALVE, /* 阀组 */
+};
+
+/**
+ * @brief 当前所存储的数据类型
  *
  */
 enum stroe_type
 {
-    TYPE_NO,                    /* 未配置类型 */
-    TYPE_OIL_WELL_DATA,         /* 油井数据类型 */
-    TYPE_WATER_WELL_DATA,       /* 水源井数据类型 */
-    TYPE_VALVE_GROUP_DATA,      /* 阀组间数据类型 */
-    TYPE_MANIFOLD_PRESSURE_1,   /* 汇管压力1(AI)数据类型 */
-    TYPE_MANIFOLD_PRESSURE_2,   /* 汇管压力2(AI)数据类型 */
-    TYPE_INDICATION_DIAGRAM,    /* 功图数据类型 */
-    TYPE_POWER_DIAGRAM          /* 功率图数据类型 */
+    TYPE_NO,                  /* 未配置类型 */
+    TYPE_OIL_WELL_DATA,       /* 油井数据类型 */
+    TYPE_WATER_WELL_DATA,     /* 水源井数据类型 */
+    TYPE_VALVE_GROUP_DATA,    /* 阀组间数据类型 */
+    TYPE_MANIFOLD_PRESSURE_1, /* 汇管压力1(AI)数据类型 */
+    TYPE_MANIFOLD_PRESSURE_2, /* 汇管压力2(AI)数据类型 */
+    TYPE_INDICATION_DIAGRAM,  /* 功图数据类型 */
+    TYPE_POWER_DIAGRAM        /* 功率图数据类型 */
 };
 
 /**
@@ -100,62 +122,21 @@ enum stroe_type
  */
 enum error_mun
 {
-    ERROR_NO,     /* 未出现错误 */
-    ERROR_CONFIG, /* 读取配置项失败 */
-    ERROR_XBEE,   /* 初始化xbee失败 */
-    ERROR_I2C,    /* 初始化i2c失败 */
-    ERROR_SPI,    /* 初始化spi失败 */
-    ERROR_485_0,  /* 初始化485 0口失败 */
-    ERROR_SQL,    /* 初始化数据库失败 */
+    ERROR_NO,                /* 未出现错误 */
+    ERROR_CONFIG,            /* 读取配置项失败 */
+    ERROR_XBEE,              /* 初始化xbee失败 */
+    ERROR_I2C,               /* 初始化i2c失败 */
+    ERROR_SPI,               /* 初始化spi失败 */
+    ERROR_485_0,             /* 初始化485 0口失败 */
+    ERROR_SQL,               /* 初始化数据库失败 */
+
+    ERROR_232,               /* 初始化rs232失败 */
+    ERROR_485_1,             /* 初始化485 1口失败 */
+    ERROR_WIFI,              /* 初始化WiFi失败 */
 
     ERROR_XBEE_RECV_TIMEOUT, /* zigbee接收超时 */
     ERROR_XBEE_RECV_DATA,    /* zigbee接收数据错误 */
-
-    ERROR_232,   /* 初始化rs232失败 */
-    ERROR_485_1, /* 初始化485 1口失败 */
-    
 };
-
-#ifdef test
-/* 用于保存配置项名称 */
-string  option_cfg[] = {
-    "VERSION",
-    "RTU_NAME",
-    "PORT",
-    "IP",
-    "GATEWAY",
-    "MAC",  /* 当前未配置 */
-    "MASK",
-    "MANIFOLD_PRESSURE_1",
-    "MANIFOLD_PRESSURE_2",
-    "MANIFOLD_RANGE_1",
-    "MANIFOLD_RANGE_2",
-    "XBEE_ID",
-    "XBEE_SC",
-    "XBEE_AO",
-    "XBEE_CE",
-    "WELLHEAD_1",
-    "WELLHEAD_2",
-    "WELLHEAD_3",
-    "WELLHEAD_4",
-    "WELLHEAD_5",
-    "WELLHEAD_6",
-    "WELLHEAD_7",
-    "WELLHEAD_8",
-    "WELLHEAD_9",
-    "WELLHEAD_10",
-    "WELLHEAD_11",
-    "WELLHEAD_12",
-    "WELLHEAD_13",
-    "WELLHEAD_14",
-    "WELLHEAD_15",
-    "WELLHEAD_16",
-    "VALVE_GROUP_125",
-    "VALVE_GROUP_126",
-    "VALVE_GROUP_127",
-    "VALVE_GROUP_128",
-};
-#endif //test
 
 /**
  * @brief 用于保存状态机的当前状态信息
@@ -173,9 +154,10 @@ struct state_machine_current_info
     uint16_t addr_len;             /* 当前地址长度 */
     bool     isGetTime;            /* 当前GetTime的状态 */
     uint16_t phase;                /* 当前状态机所处的阶段 */
-    //string   time;                 /* 当前使能￼时间 */
-    int      store_type;           /* 当前所存储的数据类型 */
-    bool     is_again;             /* 判断当前是否开始请求下一口井的数据 */
+
+    // string   time;                 /* 当前使能￼时间 */
+    int  store_type;               /* 当前所存储的数据类型 */
+    bool is_again;                 /* 判断当前是否开始请求下一口井的数据 */
 };
 
 /**
@@ -202,15 +184,16 @@ struct data_block
  */
 struct tcp_data
 {
-    uint8_t  frame_header[6]; /* 帧头 */
-    uint8_t  id;              /* 站号 */
-    uint8_t  func_code;       /* 功能码 */
-    uint8_t byte_count;       /* 字节个数（功能码0x10, 0x0f） */
-    //uint8_t coils_data[20];   /* 线圈输出值 (功能码0x0f) */
-    uint16_t start_addr;      /* 寄存器起始地址 */
-    uint16_t len;             /* 寄存器的长度/个数 */
-    uint16_t set_val;         /* 向寄存器中写入的值（功能码0x06） */
-    uint16_t value[20];       /* 向多个寄存器中写入的值（功能码0x10, 0x0f时只当做单字节使用） */
+    uint8_t frame_header[6]; /* 帧头 */
+    uint8_t id;              /* 站号 */
+    uint8_t func_code;       /* 功能码 */
+    uint8_t byte_count;      /* 字节个数（功能码0x10, 0x0f） */
+
+    // uint8_t coils_data[20];   /* 线圈输出值 (功能码0x0f) */
+    uint16_t start_addr;     /* 寄存器起始地址 */
+    uint16_t len;            /* 寄存器的长度/个数 */
+    uint16_t set_val;        /* 向寄存器中写入的值（功能码0x06） */
+    uint16_t value[20];      /* 向多个寄存器中写入的值（功能码0x10, 0x0f时只当做单字节使用） */
 };
 
 /**
@@ -219,34 +202,34 @@ struct tcp_data
  */
 struct config_info
 {
-    string version;  /* 固件版本 */
-    string rtu_name; /* rtu名称 */
+    string version;   /* 固件版本 */
+    string rtu_name;  /* rtu名称 */
 
-    uint16_t port;     /* 端口号 */
-    string ip;       /* ip地址 */
-    string gateway;  /* 网关 */
-    string mac;      /* mac地址 */
-    string mask;     /* 子网掩码 */
+    uint16_t port;    /* 端口号 */
+    string   ip;      /* ip地址 */
+    string   gateway; /* 网关 */
+    string   mac;     /* mac地址 */
+    string   mask;    /* 子网掩码 */
 
     /* 汇管的配置信息 */
     struct manifold_pressure
     {
-        uint8_t type;   /* 0:未配置 1:AI配置 2:ZigBee配置 */
-        uint8_t add;    /* 1～6对应连接到AI的第几个引脚上 */
-        uint8_t id;     /* 配置在第几个站号上 */
+        uint8_t  type;  /* 0:未配置 1:AI配置 2:ZigBee配置 */
+        uint8_t  add;   /* 1～6对应连接到AI的第几个引脚上 */
+        uint8_t  id;    /* 配置在第几个站号上 */
         uint16_t range; /* 量程 */
     } manifold_1, manifold_2;
 
-    string xbee_id;   /* 16位的PAN ID */
-    string xbee_sc;   /* 7fff */
-    string xbee_ao;   /* 0:<不接收ack>  1:<接收ack> */
-    string xbee_ce;   /* 0:<路由器>  1:<协调器> */
+    string xbee_id;     /* 16位的PAN ID */
+    string xbee_sc;     /* 7fff */
+    string xbee_ao;     /* 0:<不接收ack>  1:<接收ack> */
+    string xbee_ce;     /* 0:<路由器>  1:<协调器> */
 
     /* 井口的配置信息 */
     struct well_info
     {
-        uint8_t  id;   /* 已配置的站号 */
-        uint8_t  type; /* 类型 0:<未配置> 1:<油井> 2:<水井> 0x31:<阀组(485)>
+        uint8_t id;    /* 已配置的站号 */
+        uint8_t type;  /* 类型 0:<未配置> 1:<油井> 2:<水井> 0x31:<阀组(485)>
                           0x32<阀组(zigbee)> */
         uint64_t addr; /* 64位设备地址 */
     } well_info[20];
@@ -261,36 +244,59 @@ struct config_info
     int do_reg[8];
 
     /* AI寄存器配置 */
-    struct ai_cfg{
+    struct ai_cfg {
         int reg;
         int rng;
-    }ai_cfg[10];
+    } ai_cfg[10];
 
     /* 网口配置 */
-    struct eth_cfg{
+    struct eth_cfg {
         string ip;
         string mask;
         string gateway;
-    }eth_cfg[2];
+    } eth_cfg[2];
 
     /* wifi配置 */
-    struct wifi_cfg{
+    struct wifi_cfg {
         string ssid;
         string password;
-    }wifi_cfg;
+    } wifi_cfg;
 
     /* 串口(232,485)配置  0->232;1->485;2->485 */
-    struct serial_cfg{
+    struct serial_cfg {
         string baudrate;
         string parity;
-        int databit;
-        int stopbit;
-    }serial_cfg[3];
+        int    databit;
+        int    stopbit;
+    } serial_cfg[3];
 
     /* 自定义的与上位机间通信的配置寄存器信息，对应站号为222 */
     uint16_t reg_value[100];
 };
 
+/**
+ * @brief 设备故障信息
+ *
+ */
+struct device_fault_info
+{
+    uint8_t        device_type; /* 设备类型 101~116油井；201~216水井；301井场回压；401~410红外报警
+                                   */
+    vector<uint8_t>fault_type;  /* 故障类型，最大16种，根据设备类型定，详见A11协议附录B */
+    uint16_t       time[3];     /* 故障产生的时间，详见A11协议 */
+};
+
+// struct device_fault_info
+// {
+//     int mun; /* 产生故障设备的数量 */
+//     struct fault_details /* 单个设备故障详情 */
+//     {
+//         uint8_t device_type; /* 设备类型 101~116油井；201~216水井；301井场回压；401~410红外报警
+// */
+//         uint8_t fault_type[16]; /* 故障类型，最大16种，根据设备类型定，详见A11协议附录B */
+//         uint8_t fault_num; /* 故障类型的实际数量 */
+//     }detatils[43]; /* 根据设备类型，暂定最大43种 */
+// };
 
 // TODO : 这里以后可以把指针更换成智能指针
 class MultiTask {
@@ -342,12 +348,12 @@ private:
      */
     struct wellsite_info
     {
-        std::vector<uint16_t>wellsite_info;           /* 井场信息(暂未定) */
-        std::vector<uint16_t>manufacturer;            /* 厂家信息(暂未定) */
-        std::vector<uint16_t>rtu_version;             /* 设备型号(暂未定) */
-        uint16_t             manifold_pressure[2];    /* 汇管压力数据 */
-        uint16_t             fault_info[5];           /* 故障信息 */
-        uint16_t             infrared_alarm[2];       /* 红外报警 */
+        std::vector<uint16_t>wellsite_info;        /* 井场信息(暂未定) */
+        std::vector<uint16_t>manufacturer;         /* 厂家信息(暂未定) */
+        std::vector<uint16_t>rtu_version;          /* 设备型号(暂未定) */
+        uint16_t             manifold_pressure[2]; /* 汇管压力数据 */
+        uint16_t             fault_info[5];        /* 故障信息 */
+        uint16_t             infrared_alarm[2];    /* 红外报警 */
     } wellsite_info;
 
 
@@ -355,6 +361,7 @@ private:
     struct tcp_data tcp_data;
 
     /* 保存配置在某一口井上的汇管压力对应的ID再对应的存储块的ID */
+
     // int to_id_manifold_1 = 0;
     // int to_id_manifold_2 = 0;
 
@@ -386,8 +393,8 @@ private:
     /* 用于指向分配的两个data_block数据区 */
     struct to_data_block
     {
-        struct data_block *wr_db; /* 指向写基础数据指针 */
-        struct data_block *rd_db; /* 指向写基础数据指针 */
+        struct data_block *wr_db;     /* 指向写基础数据指针 */
+        struct data_block *rd_db;     /* 指向写基础数据指针 */
         struct data_block *wr_db_ind; /* 指向写功图数据指针 */
         struct data_block *rd_db_ind; /* 指向读功图数据指针 */
     } to_db;
@@ -412,6 +419,15 @@ private:
 
     /* 用于初始化rs232 */
     uart *uart_232 = nullptr;
+
+    /* 用于保存故障设备信息 */
+    vector<device_fault_info>dev_fault_info;
+
+    /* 用于保存当前故障设备信息列表中的故障设备数量 */
+    int current_dev_type_num = 0;
+
+    /* 用于保存当前故障设备中的故障类型数量 */
+    int current_fault_type_num = 0;
 
 
     /* ----------------------配置项---------------------- */
@@ -446,6 +462,9 @@ private:
     /* 用于给井场RTU信息上锁 */
     std::mutex m_wellsite;
 
+    /* 用于给故障设备信息上锁 */
+    std::mutex m_dev_fault;
+
     /* 用于判断接收的井口基础数据是否准备好 */
     std::condition_variable cv_basic_data;
 
@@ -454,8 +473,6 @@ private:
 
     /* 用于判断当前是否开始请求下一口井的数据的条件变量 */
     std::condition_variable cv_cur_info;
-
-
 
 public:
 
@@ -486,23 +503,31 @@ public:
         return is_error;
     }
 
-    struct config_info get_config() const
+    struct config_info get_cfg() const
     {
         return config_info;
     }
 
-    int get_tcp_config(const char * value, char * get_value, int addr, int time);
-    
-    int get_jconfig();
+    int get_tcp_config(const char *value,
+                       char       *get_value,
+                       int         addr,
+                       int         time);
+
+    int get_jconfig_info();
 
     int config_manage();
 
-    int set_config(uint16_t *config_data, int start_addr, int len);
+    int set_config(uint16_t *config_data,
+                   int       start_addr,
+                   int       len);
 
     int rs485(struct state_machine_current_info *curr_info,
               struct data_block                 *data_block);
 
-    int rs485_write(struct tcp_data * tcp_data);
+    int rs485_modbus_write(struct tcp_data *tcp_data);
+
+    int modbus_write(int              comm_type,
+                     struct tcp_data *tcp_data);
 
     int to_xbee(struct tcp_data *tcp_data);
 
@@ -511,6 +536,13 @@ public:
     int state_machine_operation(
         struct state_machine_current_info *curr_info,
         struct data_block                 *data_block);
+
+    uint16_t get_ai_value(struct spi_handler ai,
+                          uint8_t            addr,
+                          uint16_t           rang);
+
+    void manage_fault_device(bool                     is_fault,
+                             struct device_fault_info dev_fault);
 };
 
 #endif // ifndef __MULTITASK_H__

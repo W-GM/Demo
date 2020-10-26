@@ -28,9 +28,9 @@ int main()
     
     MultiTask app;
 
-    const char *error_type[] = {"config", "xbee", "i2c", "spi", "485", "sql"};
+    const char *error_type[] = {"config", "xbee", "i2c(di,do)", "spi(ai)", "485_0", "sql", "232", "485_1", "wifi"};
     int is_error = app.get_error();
-    if(is_error > 0 && is_error < 7)
+    if(is_error > 0 && is_error < 9)
     {   
         printf("init %s error\n", error_type[is_error -1]);
         exit(-1);
@@ -53,28 +53,23 @@ int main()
 
     std::thread Init_thread(&MultiTask::thread_init, &app);
     Init_thread.join();
-#if 0
+
     std::thread Get_wellport_info_thread(&MultiTask::thread_get_wellport_info, &app);
 
-   
+#if 0   
     std::thread Host_request_thread(&MultiTask::thread_host_request, &app);
-
     std::thread Watchdogctl_thread(&MultiTask::thread_watchdogctl, &app);
-
     std::thread Update_thread(&MultiTask::thread_update, &app);
 #endif
 
 #ifdef SQL
     std::thread Sql_memory_thread(&MultiTask::thread_sql_memory, &app);
 #endif
-
-#if 0    
+   
     Get_wellport_info_thread.join();
-
+#if 0 
     Host_request_thread.join();
-
     Watchdogctl_thread.join();
-
     Update_thread.join();
 #endif
 

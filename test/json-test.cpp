@@ -46,9 +46,9 @@ typedef struct ConfigData
     SerialCFG SerialCfg;
     vector<SerialCFG>SerialCfgs;
 
-    int MainfoldIndex;
-    MainFold_S MainfoldCfg;
-    vector<MainFold_S> MainfoldCfgS;
+    int ManifoldIndex;
+    ManiFold_S ManifoldCfg;
+    vector<ManiFold_S> ManifoldCfgS;
 
     int WellportIndex;
     int WellportCfg;
@@ -63,7 +63,7 @@ int main(int argc, char const *argv[])
     int wellports[] = {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     EthCFG EthCFG0, EthCFG1;
     SerialCFG SerialCFG0, SerialCFG1, SerialCFG2;
-    MainFold_S MainFold_S0, MainFold_S1;
+    ManiFold_S ManiFold_S0, ManiFold_S1;
     Cdata data;
 
     data.Ver = "1.1.1";
@@ -134,14 +134,14 @@ int main(int argc, char const *argv[])
     data.SerialCfgs.push_back(SerialCFG1);
     data.SerialCfgs.push_back(SerialCFG2);
 
-    MainFold_S0.cfg = 1000;
-    MainFold_S0.rng = 6;
-    MainFold_S1.cfg = 2506;
-    MainFold_S1.rng = 0;
-    data.MainfoldIndex = 0;
-    data.MainfoldCfg = MainFold_S0;
-    data.MainfoldCfgS.push_back(MainFold_S0);
-    data.MainfoldCfgS.push_back(MainFold_S1);
+    ManiFold_S0.cfg = 1000;
+    ManiFold_S0.rng = 6;
+    ManiFold_S1.cfg = 2506;
+    ManiFold_S1.rng = 0;
+    data.ManifoldIndex = 0;
+    data.ManifoldCfg = ManiFold_S0;
+    data.ManifoldCfgS.push_back(ManiFold_S0);
+    data.ManifoldCfgS.push_back(ManiFold_S1);
 
     data.WellportIndex = 0;
     data.WellportCfg = 1;
@@ -293,19 +293,19 @@ int main(int argc, char const *argv[])
     cout << "stopbit: " << config->GetSerialCfgs()[2].stopbit << endl;
 
 #ifdef SINGLE
-    config->SetMainFoldCfg(data.MainfoldIndex, data.MainfoldCfg);
+    config->SetManiFoldCfg(data.ManifoldIndex, data.ManifoldCfg);
 #else
-    config->SetMainFoldCfgs(data.MainfoldCfgS);
+    config->SetManiFoldCfgs(data.ManifoldCfgS);
 #endif
     cout << endl;
-    cout << "mainfold-0>> " << endl;
-    cout << "cfg: " << config->GetMainFoldCfgs()[0].cfg << endl;
-    cout << "rng: " << config->GetMainFoldCfgs()[0].rng << endl;
+    cout << "Manifold-0>> " << endl;
+    cout << "cfg: " << config->GetManiFoldCfgs()[0].cfg << endl;
+    cout << "rng: " << config->GetManiFoldCfgs()[0].rng << endl;
     
     cout << endl;
-    cout << "mainfold-1>> " << endl;
-    cout << "cfg: " << config->GetMainFoldCfgs()[1].cfg << endl;
-    cout << "rng: " << config->GetMainFoldCfgs()[1].rng << endl;
+    cout << "Manifold-1>> " << endl;
+    cout << "cfg: " << config->GetManiFoldCfgs()[1].cfg << endl;
+    cout << "rng: " << config->GetManiFoldCfgs()[1].rng << endl;
 
 #ifdef SINGLE
     config->SetWellPortCfg(data.WellportIndex, data.WellportCfg);

@@ -16,7 +16,7 @@
 
 #define CHANGE
 
-void xbeeAtCmd(XBee   & xbee,
+int xbeeAtCmd(XBee   & xbee,
                uint8_t *atCmd,
                uint8_t *setVale,
                uint8_t  valeLength);

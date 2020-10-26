@@ -8,8 +8,9 @@
  * @param atCmd AT命令
  * @param setVale AT命令值
  * @param valeLength AT命令值长度
+ * @return int 成功：1；超时：0；失败：-1
  */
-void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
+int xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
 {
     // 存放AT Command命令和参数的Tx数据包 的对象
     AtCommandRequest atRequest =
@@ -75,17 +76,20 @@ void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
 
                     printf(" \n");
                 }
+                return 1;
             }
             else
             {
                 printf("Command return error code: ");
                 printf("%02x\n", atResponse.getStatus());
+                return -1;
             }
         }
         else
         {
             printf("Return an error AT response: ");
             printf("%02x\n", xbee.getResponse().getApiId());
+            return -1;
         }
     }
     else
@@ -101,6 +105,8 @@ void xbeeAtCmd(XBee& xbee, uint8_t *atCmd, uint8_t *setVale, uint8_t valeLength)
         {
             printf("No response from radio\n");
         }
+
+        return 0;
     }
 }
 
@@ -264,7 +270,7 @@ int xbeeRx(XBee& xbee, uint8_t *data, int *len, uint64_t *slave_addr)
 
             if (msr.getStatus() == ASSOCIATED)
             {
-                //printf("已成功加入网络\n");
+                printf("已成功加入网络\n");
             }
             else if (msr.getStatus() == DISASSOCIATED)
             {
@@ -287,7 +293,7 @@ int xbeeRx(XBee& xbee, uint8_t *data, int *len, uint64_t *slave_addr)
             if (txStatus.getDeliveryStatus() == SUCCESS)
             {
                 printf("响应成功\n");
-                return 6;
+                return 1;
             }
             else if (txStatus.getDeliveryStatus() == ADDRESS_NOT_FOUND)
             {
