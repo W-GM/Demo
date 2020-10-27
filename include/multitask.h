@@ -71,8 +71,9 @@ enum connect_type
  */
 enum communication__type
 {
-    COMM_XBEE, /* 通过zigbee进行数据通信 */
-    COMM_485, /* 通过RS485进行数据通信 */
+    COMM_XBEE = 1, /* 通过zigbee进行数据通信 */
+    COMM_485,      /* 通过RS485进行数据通信 */
+    COMM_RTU      /* 通过井场RTU本身进行数据通信 */
 };
 
 /**
@@ -508,28 +509,13 @@ public:
         return config_info;
     }
 
-    int get_tcp_config(const char *value,
-                       char       *get_value,
-                       int         addr,
-                       int         time);
-
     int get_jconfig_info();
-
-    int config_manage();
-
-    int set_config(uint16_t *config_data,
-                   int       start_addr,
-                   int       len);
 
     int rs485(struct state_machine_current_info *curr_info,
               struct data_block                 *data_block);
 
-    int rs485_modbus_write(struct tcp_data *tcp_data);
-
     int modbus_write(int              comm_type,
                      struct tcp_data *tcp_data);
-
-    int to_xbee(struct tcp_data *tcp_data);
 
     int sel_data_to_tcp(struct tcp_data *tcp_data);
 
