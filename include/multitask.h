@@ -287,17 +287,16 @@ struct device_fault_info
     uint16_t       time[3];     /* 故障产生的时间，详见A11协议 */
 };
 
-// struct device_fault_info
-// {
-//     int mun; /* 产生故障设备的数量 */
-//     struct fault_details /* 单个设备故障详情 */
-//     {
-//         uint8_t device_type; /* 设备类型 101~116油井；201~216水井；301井场回压；401~410红外报警
-// */
-//         uint8_t fault_type[16]; /* 故障类型，最大16种，根据设备类型定，详见A11协议附录B */
-//         uint8_t fault_num; /* 故障类型的实际数量 */
-//     }detatils[43]; /* 根据设备类型，暂定最大43种 */
-// };
+/**
+ * @brief 用于上传给平台的设备故障信息
+ * 
+ */
+struct platform_dev_fault_info
+{
+    int id; /* 站号 */
+    vector<uint8_t> type; /* 故障类型 */
+    int num; /* 故障数量 */
+};
 
 // TODO : 这里以后可以把指针更换成智能指针
 class MultiTask {
@@ -422,7 +421,13 @@ private:
     uart *uart_232 = nullptr;
 
     /* 用于保存故障设备信息 */
-    vector<device_fault_info>dev_fault_info;
+    vector<device_fault_info> dev_fault_info;
+
+    /* 用于保存上传给平台的故障设备信息 */
+    vector<platform_dev_fault_info> platform_dev_fault_info;
+
+    /* 用于保存是否有故障信息要上传给平台 */
+    bool is_upload_fault_info_to_platform;
 
     /* 用于保存当前故障设备信息列表中的故障设备数量 */
     int current_dev_type_num = 0;
@@ -433,9 +438,9 @@ private:
 
     /* ----------------------配置项---------------------- */
     /* configure */
-    XMLDocument config;                  /* 定义配置对象 */
-    XMLElement *config_label = nullptr;  /* 指向配置文件中的标签 */
-    XMLElement *config_option = nullptr; /* 指向标签中的配置 */
+    // XMLDocument config;                  /* 定义配置对象 */
+    // XMLElement *config_label = nullptr;  /* 指向配置文件中的标签 */
+    // XMLElement *config_option = nullptr; /* 指向标签中的配置 */
 
     /* 用于保存从配置项文件中得到的配置信息 */
     struct config_info config_info;
@@ -463,8 +468,14 @@ private:
     /* 用于给井场RTU信息上锁 */
     std::mutex m_wellsite;
 
-    /* 用于给故障设备信息上锁 */
+    /* 用于给故障设备信息（服务器）上锁 */
     std::mutex m_dev_fault;
+
+    /* 用于给故障设备信息（平台）上锁 */
+    std::mutex m_dev_fault_platform;
+
+    /* 用于判断要上传给平台的故障设备信息是否准备好 */
+    std::condition_variable cv_dev_fault_platform;
 
     /* 用于判断接收的井口基础数据是否准备好 */
     std::condition_variable cv_basic_data;
@@ -498,6 +509,9 @@ public:
 
     /* 看门狗控制线程 */
     void thread_watchdogctl();
+
+    /* 故障信息上报线程 */
+    void thread_fault_info_upload();
 
     int  get_error()
     {

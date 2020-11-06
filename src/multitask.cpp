@@ -1882,6 +1882,30 @@ void MultiTask::thread_watchdogctl()
 
 #endif // test
 
+
+/**
+ * @brief 故障上报线程
+ * 
+ */
+void MultiTask::thread_fault_info_upload()
+{
+
+    while(1)
+    {
+        /* ######## 上锁 ######## */
+        std::unique_lock<std::mutex> db_lock(m_dev_fault_platform);
+
+        /* 阻塞等待是否有故障信息要上传 */
+        while(!is_upload_fault_info_to_platform)
+        {
+            cv_dev_fault_platform.wait(db_lock);
+        }
+
+         
+        
+    }
+}
+
 /**
  * @brief 用于在与井口通讯线程中状态机的交互过程
  *
